@@ -149,3 +149,10 @@
   - 미연결 중의 큐 전환은 ATEM 으로 보내지 않음(엔진 진행은 계속). **재연결 시 현재 큐를 자동 재송출하지 않음** — 그 사이 수동 스위칭했을 수 있으므로 의도치 않은 화면 전환 방지. 디렉터가 필요 시 JUMP/BACK 으로 재송출.
   - 명령 실패는 로그만 남기고 다음 명령은 계속 실행. ATEM 명령은 직렬 큐로 순서 보장.
 - `atem-connection` 은 실제 장비 모드에서만 동적 import (mock/disabled 에서는 워커 스레드 미생성).
+
+## 9. 기타
+
+- `.env` 는 git 제외, `.env.example` 커밋. `npm run setup` 이 없으면 복사.
+- 기본 `ATEM_HOST=mock` — 처음 실행해도 탈리·PVW 흐름을 바로 확인 가능. 실제 장비는 IP 로 교체.
+- GitHub Actions CI(`.github/workflows/ci.yml`): `npm ci → typecheck → test → build`.
+- Node 20.12+ 요구 (`process.loadEnvFile`).
