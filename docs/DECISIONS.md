@@ -71,3 +71,19 @@
 
 ### 편집 중 갱신 (`reconcile`)
 - 라이브 중 에디터 저장 시 현재 큐 id 로 위치를 다시 찾음. 큐 삭제 시 같은 Act 의 가까운 큐, Act 삭제 시 STANDBY.
+
+## 4. 서버 / WebSocket
+
+| 항목 | 결정 |
+|---|---|
+| WebSocket | `@fastify/websocket` 대신 `ws` 를 Fastify 의 http 서버 `upgrade` 이벤트에 직접 연결 (요청서 "WebSocket(ws)"). 경로 `/ws` |
+| 상태 보관 | `ShowRuntime` 이 메모리에 엔진 상태 보관. 서버 재시작 시 STANDBY 로 시작 (라이브 위치는 DB 저장 안 함 — 재시작 후 디렉터가 JUMP 로 복귀) |
+| 시작 시 로드 | 가장 최근 수정된 예배를 자동 로드. 디렉터 콘솔에서 교체 가능(`POST /api/show/load`) |
+| 자동 진행 주기 | 20ms 간격 TICK (SECTION Act 에서만). 박자 기준 시각은 엔진이 보정하므로 타이머 지터는 누적되지 않음 |
+| 명령 권한 | WS 에서 `hello.role = director` 인 클라이언트만 GO/BACK/HOLD/JUMP/RESET 허용. CueScreen(cam)은 읽기 전용. 인증은 없음(교회 내부 LAN 전제) |
+| HTTP 명령 | `POST /api/show/command` 추가 — Bitfocus Companion/Stream Deck 의 HTTP 액션으로 GO 버튼 매핑 가능 |
+| 시간 동기화 | `ping`/`pong` 으로 서버 시각 오프셋 계산 → 폰 시계가 틀려도 카운트다운 정확 |
+| 끊김 감지 | 15초 주기 WS ping/pong, 응답 없으면 정리 (폰 잠금/와이파이 전환 대비). 클라이언트는 자동 재접속 |
+| 에디터 저장 | 전체 문서 PUT. 클라이언트가 Act/Cue id 를 유지해 보내면 upsert, 빠진 항목 삭제. 다른 예배 소유 id 는 409 |
+| JSON 내보내기 | `{ format: "mini-cuepilot/service@1", exportedAt, service }`, id 제거(다른 PC로 이식 시 충돌 방지). 가져오기는 래퍼 없는 서비스 객체도 허용 |
+| 테스트 DB | Vitest globalSetup 에서 `prisma db push` 로 템플릿 SQLite 생성 → 테스트 파일마다 복사해 독립 사용 |
