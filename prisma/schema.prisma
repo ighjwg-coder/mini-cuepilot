@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// 예배 (한 번의 예배 = 하나의 큐시트)
+model Service {
+  id        String   @id @default(uuid())
+  title     String
+  date      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  acts      Act[]
+}
+
+/// 예배 순서 (찬양1, 대표기도, 설교 ...)
+model Act {
+  id          String  @id @default(uuid())
+  serviceId   String
+  service     Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  order       Int
+  title       String
+  /// MANUAL | SECTION | TIMECODE
+  mode        String  @default("MANUAL")
+  bpm         Float?
+  beatsPerBar Int     @default(4)
+  cues        Cue[]
+
+  @@index([serviceId, order])
+}
+
+model Cue {
+  id          String  @id @default(uuid())
+  actId       String
+  act         Act     @relation(fields: [actId], references: [id], onDelete: Cascade)
+  order       Int
+  camera      Int
+  /// WS | MS | CU | ECU
+  shotSize    String
+  note        String  @default("")
+  durationSec Float?
+  /// V1 | PRE | CH | BR | OUTRO ... (optional)
+  section     String?
+  /// SECTION 모드에서 이 큐의 길이(마디 수)
+  bars        Float?
+  /// TIMECODE 모드에서 Act 시작 기준 진입 시각(초). 없으면 durationSec 누적값 사용
+  tcInSec     Float?
+  /// cut | auto | macro:n | dsk:n:on | dsk:n:off
+  atemAction  String  @default("cut")
+
+  @@index([actId, order])
+}
