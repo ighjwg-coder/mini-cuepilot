@@ -122,3 +122,30 @@
 - **JSON 내보내기**는 저장된 서버 버전 기준(미저장 시 비활성). **가져오기**는 항상 새 예배로 생성(기존 예배 덮어쓰기 없음).
 - 편집 연산은 `src/shared/editorOps.ts` 순수 함수로 분리하고 Vitest 로 검증.
 - 정적 파일 서빙은 `@fastify/static` wildcard 모드 (서버 실행 중 `npm run build` 해도 새 자산 즉시 반영).
+
+## 8. ATEM 어댑터 (`src/server/atem`)
+
+| `ATEM_HOST` | 어댑터 | 동작 |
+|---|---|---|
+| (비움) | `DisabledAtemAdapter` | 장비 제어 없음. 큐 진행·CueScreen 만 사용 |
+| `mock` | `MockAtemAdapter` | 가상 스위처(PGM/PVW/DSK/매크로 시뮬레이션, AUTO 1초). 장비 없이 리허설·데모 |
+| `192.168.x.x[:port]` | `RealAtemAdapter` | `atem-connection` 으로 실제 장비 제어 (기본 UDP 9910) |
+
+- 공통 인터페이스 `AtemAdapter` + `executeAtemAction()` 변환 함수. 런타임·테스트는 인터페이스에만 의존.
+- **atemAction 매핑**
+
+  | 큐 값 | 스위처 명령 | PGM 변경 |
+  |---|---|---|
+  | `cut` | `changePreviewInput(cam)` → `cut()` | O |
+  | `auto` | `changePreviewInput(cam)` → `autoTransition()` (스위처에 설정된 트랜지션/레이트) | O |
+  | `macro:n` | `macroRun(n-1)` — n 은 ATEM Software Control 표기(1부터) | X |
+  | `dsk:n:on/off` | `setDownstreamKeyOnAir(on, n-1)` | X |
+
+  - camera 번호 = ATEM 입력 번호 (CAM1 = Input 1). 매핑 테이블은 MVP 범위 밖.
+  - M/E 는 기본 M/E 1, `ATEM_ME` 로 변경.
+- **PVW 자동 준비**: CUT 직후 다음 큐 카메라를 PVW 에 올림(멀티뷰·탈리에서 "다음 차례" 확인). AUTO 직후에는 트랜지션 중 PVW 변경이 전환 대상을 바꿀 위험이 있어 생략.
+- **장애 처리**
+  - 연결 실패/끊김은 예외로 앱을 멈추지 않음. `status()` 의 `connected=false`, `lastError` 로 UI 에 표시. `atem-connection` 의 자동 재접속에 맡김.
+  - 미연결 중의 큐 전환은 ATEM 으로 보내지 않음(엔진 진행은 계속). **재연결 시 현재 큐를 자동 재송출하지 않음** — 그 사이 수동 스위칭했을 수 있으므로 의도치 않은 화면 전환 방지. 디렉터가 필요 시 JUMP/BACK 으로 재송출.
+  - 명령 실패는 로그만 남기고 다음 명령은 계속 실행. ATEM 명령은 직렬 큐로 순서 보장.
+- `atem-connection` 은 실제 장비 모드에서만 동적 import (mock/disabled 에서는 워커 스레드 미생성).

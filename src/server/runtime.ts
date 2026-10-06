@@ -21,7 +21,10 @@ export interface RuntimeOptions {
   now?: () => number;
   /** SECTION 자동 진행 판정 주기(ms) */
   tickMs?: number;
-  /** cut/auto 후 다음 큐 카메라를 PVW 에 미리 올림 */
+  /**
+   * CUT 후 다음 큐 카메라를 PVW 에 미리 올림.
+   * AUTO 는 트랜지션 진행 중 PVW 를 바꾸면 전환 대상이 바뀔 수 있어 제외한다.
+   */
   autoPreview?: boolean;
   log?: (msg: string, err?: unknown) => void;
 }
@@ -158,7 +161,7 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
       if (e.type === 'TIMECODE_STOP') this.opts.timecode.stop();
       else if (e.type === 'TIMECODE_START') this.opts.timecode.start();
       else {
-        switched ||= e.action.kind === 'cut' || e.action.kind === 'auto';
+        switched = e.action.kind === 'cut' ? true : e.action.kind === 'auto' ? false : switched;
         this.enqueueAtem(`큐 ${e.cueId} (${e.action.kind}, CAM ${e.camera})`, () =>
           executeAtemAction(this.opts.atem, e.camera, e.action),
         );
