@@ -16,3 +16,58 @@
 
 ### 알려진 이슈
 - `npm audit` 에서 `prisma`(CLI, devDependency) → `@prisma/config` → `deepmerge-ts` high 경고가 보고됨. 런타임(@prisma/client)이 아닌 CLI 전용 경로이며, 권장 수정(`--force`)은 prisma 다운그레이드라 적용하지 않음.
+
+## 2. 도메인 모델 확장
+
+요청서의 Cue 필드(camera, shotSize, note, durationSec, section, atemAction) 외에 진행 모드 구현에 필요한 최소 필드를 추가했습니다.
+
+| 위치 | 필드 | 용도 |
+|---|---|---|
+| Act | `mode` | `MANUAL` / `SECTION` / `TIMECODE` (Act별 진행 모드) |
+| Act | `bpm`, `beatsPerBar`(기본 4) | SECTION 모드 자동 진행 시간 계산 |
+| Cue | `bars` | SECTION 모드에서 이 큐가 유지되는 마디 수. 길이 = `bars × beatsPerBar × 60 / bpm` 초 |
+| Cue | `tcInSec` | TIMECODE 모드에서 Act 시작 기준 진입 시각(초). 비우면 앞 큐들의 `durationSec` 누적값 |
+
+- **section**: 요청서 예시(V1/PRE/CH/BR/OUTRO)에 INTRO, V2, V3, INST, TAG 를 프리셋으로 추가. 값 검증은 `^[A-Z][A-Z0-9]{0,7}$` 로 느슨하게 허용 (V4, CH2 등 실제 콘티 대응).
+- **camera**: 1~8 (ATEM 입력 번호와 1:1 매핑).
+
+## 3. 큐 진행 엔진 (`src/shared/engine.ts`)
+
+- `reduce(service, state, event) → { state, effects }` 순수 함수. 시간은 모든 이벤트에 `now` 로 주입 → 테스트에서 가짜 시계 불필요.
+- 부수효과는 `effects` 로만 표현: `ATEM`(큐의 atemAction), `TIMECODE_START/STOP`(타임코드 소스 제어). 서버가 실제 실행.
+- 위치는 `(actIndex, cueIndex)`, STANDBY 는 `(-1, -1)`. 빈 Act 는 GO/BACK 시 건너뜀.
+
+### 모드별 규칙
+
+| 모드 | GO | 자동 진행 |
+|---|---|---|
+| MANUAL | 다음 큐 | 없음 (`durationSec` 은 카운트다운 표시용) |
+| SECTION | 자동 진행 중인 섹션 블록 안이면 **다음 섹션 첫 큐로 점프**(=섹션 시작 수동 트리거), 아니면 다음 큐 | 같은 section 라벨이 연속된 블록 안에서 `bars`·`bpm` 기준. 블록의 마지막 큐는 시간이 지나도 머무름(다음 섹션 트리거 대기) |
+| TIMECODE | 다음 큐 (수동 선행 허용) | 타임코드가 가리키는 마지막 큐로 **전진만** 함. 중간 큐를 건너뛰면 ATEM 은 최종 큐만 전송 |
+
+- SECTION 자동 진행 시 새 큐 시작 시각 = 이전 큐 시작 + 길이 (TICK 지연과 무관하게 박자 누적 오차 없음). 지연된 TICK 한 번에 여러 큐를 넘기면 ATEM 효과도 순서대로 모두 발생.
+- 섹션 라벨이 없는 큐, 또는 `bars`/`bpm` 이 없는 큐는 SECTION 모드에서도 GO 로 한 큐씩 진행.
+- 같은 섹션을 연속 반복(예: 후렴 2회)하려면 섹션 라벨을 달리 하거나(CH, CH2) 사이에 다른 섹션이 있어야 블록이 분리됨.
+- Act 경계는 모드와 관계없이 항상 GO 로 넘어감 (자동으로 다음 순서로 넘어가지 않음 — 예배 안전성 우선).
+
+### BACK
+- 직전 큐로 이동(Act 경계 넘음)하고 해당 큐의 ATEM 액션을 **다시 전송** → 화면도 이전 샷으로 복귀.
+- SECTION 블록 안으로 돌아가면 그 큐부터 자동 진행 재개.
+
+### HOLD (토글)
+- HOLD 중: SECTION 자동 진행·TIMECODE 추종 정지. 큐 경과 시간도 멈춤.
+- 해제 시 `cueStartedAt` 을 HOLD 시간만큼 뒤로 밀어 남은 마디부터 이어감.
+- HOLD 중에도 디렉터의 GO/BACK/JUMP 는 동작(수동 개입 우선), HOLD 상태는 유지.
+- TIMECODE 는 HOLD 중에도 수신값만 기록하고, 해제 후 다음 타임코드 수신 시 현재 위치로 따라잡음(외부 타임코드는 멈추지 않는 것이 실제 동작).
+
+### 탈리(ON AIR) 판단
+- `cut`/`auto` 큐만 PGM 카메라를 바꾼 것으로 간주(`programCamera`). `macro`/`dsk` 큐는 PGM 유지.
+- 서버는 ATEM 이 연결돼 있으면 **실제 ATEM PGM 입력**을, 아니면 엔진의 `programCamera` 를 탈리로 사용.
+
+### 카운트다운 (`upcoming`, `cameraView`)
+- 현재 큐 남은 시간 + 이후 큐 길이 누적으로 각 큐의 ETA 계산.
+- 모든 전환이 자동이면 `exact=true`(정확), 중간에 수동 GO 가 필요하면 "즉시 GO 가정" 최소 추정치(`exact=false`), 길이를 모르는 큐가 끼면 `etaMs=null`(“큐 N개 후”로 표시).
+- 엔진이 브라우저에서도 동작하므로 CueScreen 은 서버 시간 오프셋만 보정해 로컬에서 매 프레임 카운트다운 계산.
+
+### 편집 중 갱신 (`reconcile`)
+- 라이브 중 에디터 저장 시 현재 큐 id 로 위치를 다시 찾음. 큐 삭제 시 같은 Act 의 가까운 큐, Act 삭제 시 STANDBY.
