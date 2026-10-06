@@ -15,6 +15,8 @@ export interface AppDeps {
   /** vite build 결과물 경로. 존재하면 정적 서빙 + SPA fallback */
   webDir?: string;
   logger?: boolean;
+  /** 지정 시 HTTPS 로 서비스 (폰에서 Wake Lock API 사용 가능) */
+  https?: { key: Buffer; cert: Buffer };
 }
 
 class HttpError extends Error {
@@ -32,8 +34,8 @@ function parse<T>(schema: ZodType<T>, body: unknown): T {
   return r.data;
 }
 
-export async function buildApp({ repo, runtime, webDir, logger = false }: AppDeps): Promise<FastifyInstance> {
-  const app = Fastify({ logger, bodyLimit: 5 * 1024 * 1024 });
+export async function buildApp({ repo, runtime, webDir, logger = false, https }: AppDeps): Promise<FastifyInstance> {
+  const app = Fastify({ logger, bodyLimit: 5 * 1024 * 1024, ...(https ? { https } : {}) }) as unknown as FastifyInstance;
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof HttpError) return reply.status(err.statusCode).send({ error: err.message });

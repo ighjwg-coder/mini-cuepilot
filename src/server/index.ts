@@ -1,5 +1,5 @@
 // 서버 진입점
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
@@ -24,7 +24,11 @@ const runtime = new ShowRuntime({ atem, timecode: new SimulatedTimecodeSource() 
 runtime.load(await repo.latest());
 runtime.start();
 
-const app = await buildApp({ repo, runtime, webDir, logger: true });
+const https =
+  process.env.TLS_CERT && process.env.TLS_KEY
+    ? { cert: readFileSync(process.env.TLS_CERT), key: readFileSync(process.env.TLS_KEY) }
+    : undefined;
+const app = await buildApp({ repo, runtime, webDir, logger: true, https });
 await app.listen({ port, host });
 
 // ATEM 연결은 백그라운드에서. 실패해도 앱은 계속 동작하고 상태만 표시한다.
@@ -33,12 +37,12 @@ atem.connect().catch((err) => app.log.warn({ err }, 'ATEM 연결 실패 — ATEM
 const lanUrls = Object.values(networkInterfaces())
   .flat()
   .filter((i) => i && i.family === 'IPv4' && !i.internal)
-  .map((i) => `http://${i!.address}:${port}`);
+  .map((i) => `${https ? 'https' : 'http'}://${i!.address}:${port}`);
 const webPort = existsSync(webDir) ? port : 5173;
 console.log(`
   Mini CuePilot 서버 실행 중 (API :${port})
   ATEM      : ${atem.status().mode}${atem.status().host ? ` (${atem.status().host})` : ''}
-  웹 UI     : http://localhost:${webPort}${existsSync(webDir) ? '' : '  (개발 모드: Vite)'}
+  웹 UI     : ${https ? 'https' : 'http'}://localhost:${webPort}${existsSync(webDir) ? '' : '  (개발 모드: Vite)'}
   CueScreen : ${lanUrls.map((u) => `${u.replace(`:${port}`, `:${webPort}`)}/cam/1`).join('  ') || '(LAN IP 없음)'}
 `);
 

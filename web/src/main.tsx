@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { CueScreenPage } from './pages/CueScreenPage';
 import { DirectorPage } from './pages/DirectorPage';
 import { HomePage } from './pages/HomePage';
 import './styles.css';
@@ -11,6 +12,7 @@ createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/director" element={<DirectorPage />} />
+        <Route path="/cam/:n" element={<CueScreenPage />} />
         <Route path="*" element={<HomePage />} />
       </Routes>
     </BrowserRouter>

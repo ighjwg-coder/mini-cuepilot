@@ -6,3 +6,4 @@ prisma/*.db-journal
 coverage/
 *.log
 .DS_Store
+certs/
