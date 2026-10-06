@@ -87,3 +87,13 @@
 | 에디터 저장 | 전체 문서 PUT. 클라이언트가 Act/Cue id 를 유지해 보내면 upsert, 빠진 항목 삭제. 다른 예배 소유 id 는 409 |
 | JSON 내보내기 | `{ format: "mini-cuepilot/service@1", exportedAt, service }`, id 제거(다른 PC로 이식 시 충돌 방지). 가져오기는 래퍼 없는 서비스 객체도 허용 |
 | 테스트 DB | Vitest globalSetup 에서 `prisma db push` 로 템플릿 SQLite 생성 → 테스트 파일마다 복사해 독립 사용 |
+
+## 5. 디렉터 콘솔 (`/director`)
+
+- 단축키: `Space`=GO, `Backspace`=BACK, `H`=HOLD 토글. 키 반복(`repeat`)·입력 필드 포커스·조합키(Ctrl/Alt/Meta)는 무시해 오조작 방지.
+- 버튼을 마우스로 누른 뒤 Space 를 치면 "버튼 클릭 + 단축키" 로 GO 가 두 번 나가는 문제 → 전송 버튼은 포커스를 받지 않게 처리.
+- 런시트(우측)는 **더블클릭**으로 JUMP (한 번 클릭 오조작 방지). 현재 큐 자동 스크롤.
+- NEXT 카드에 "자동 전환 0:15" / "수동 GO 대기" 를 구분 표시.
+- RESET 은 확인 대화상자 필수.
+- 탈리 그리드: ATEM 연결 시 실제 PGM/PVW, 미연결 시 엔진 추정(라벨로 출처 표시).
+- 카메라별 고정 색상(1 파랑, 2 초록, 3 노랑, 4 보라, 5 청록, 6 주황, 7 분홍, 8 회색)을 전 화면 공통 사용.

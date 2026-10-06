@@ -1,5 +1,6 @@
 // Fastify 앱 조립: REST API + WebSocket + (빌드된) 웹 정적 파일
 import { existsSync } from 'node:fs';
+import { networkInterfaces } from 'node:os';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { ZodError, type ZodType } from 'zod';
@@ -50,6 +51,16 @@ export async function buildApp({ repo, runtime, webDir, logger = false }: AppDep
   // ── 상태 ──
   app.get('/api/health', async () => ({ ok: true, wsClients: ws.clientCount() }));
   app.get('/api/atem', async () => runtime.snapshot().atem);
+
+  /** 폰 접속용 LAN 주소. 포트는 요청 Host 헤더 기준(개발 모드 Vite 5173 / 운영 3000 모두 대응) */
+  app.get('/api/info', async (req) => {
+    const port = (req.headers.host ?? '').split(':')[1] ?? '80';
+    const lanUrls = Object.values(networkInterfaces())
+      .flat()
+      .filter((i) => i && i.family === 'IPv4' && !i.internal)
+      .map((i) => `http://${i!.address}${port === '80' ? '' : `:${port}`}`);
+    return { lanUrls };
+  });
 
   // ── 예배(큐시트) CRUD ──
   app.get('/api/services', async () => repo.list());

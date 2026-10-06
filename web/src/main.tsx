@@ -1,8 +1,18 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { DirectorPage } from './pages/DirectorPage';
+import { HomePage } from './pages/HomePage';
+import './styles.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <h1>Mini CuePilot</h1>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/director" element={<DirectorPage />} />
+        <Route path="*" element={<HomePage />} />
+      </Routes>
+    </BrowserRouter>
   </StrictMode>,
 );

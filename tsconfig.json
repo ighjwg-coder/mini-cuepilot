@@ -14,7 +14,9 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "types": ["node", "vite/client"]
+    "types": ["node", "vite/client"],
+    "baseUrl": ".",
+    "paths": { "@shared/*": ["src/shared/*"] }
   },
   "include": ["src", "web/src", "tests", "prisma/seed.ts", "vite.config.ts", "vitest.config.ts"]
 }
