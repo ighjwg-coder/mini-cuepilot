@@ -132,7 +132,7 @@ export async function buildApp({ repo, runtime, webDir, logger = false, https }:
 
   // ── 웹 (운영 모드) ──
   if (webDir && existsSync(webDir)) {
-    await app.register(fastifyStatic, { root: webDir, wildcard: false });
+    await app.register(fastifyStatic, { root: webDir });
     app.setNotFoundHandler((req, reply) => {
       if (req.method === 'GET' && !req.url.startsWith('/api/')) return reply.sendFile('index.html');
       return reply.status(404).send({ error: 'Not Found' });

@@ -109,3 +109,16 @@
   - Wake Lock API 는 **보안 컨텍스트(HTTPS/localhost)에서만** 동작. 교회 LAN 에서 `http://192.168.x.x` 로 접속하면 사용 불가 → 음소거 반복 비디오(canvas `captureStream`) 재생 폴백(NoSleep 방식, best-effort).
   - 확실히 하려면 `TLS_CERT`/`TLS_KEY` 환경변수로 HTTPS 서비스(README 의 mkcert 안내) 또는 폰 자동 잠금 해제.
 - 탭 전환·잠금 후 복귀 시 Wake Lock 재요청 + WebSocket 즉시 재접속.
+
+## 7. 에디터 (`/editor/:id`)
+
+- **타임라인**: Act 마다 가로 레인 1개. 큐 블록 너비 = 계산된 길이(SECTION: 마디·BPM, TIMECODE: 다음 큐 TC 차이, 그 외 durationSec) × 줌. 길이 미정 큐는 고정 폭 + 점선 테두리.
+- 블록 상단 색 = 카메라 색, 섹션 라벨 띠 = 섹션 색(CH 빨강, V 파랑, PRE 보라 …). 섹션 블록 시작 큐만 진하게 표시.
+- **드래그 정렬**: `@dnd-kit/sortable` (5px 이상 움직여야 드래그 → 클릭 선택과 구분). 키보드 정렬도 지원(`Alt+←/→`).
+- **Act 간 큐 이동**은 드래그 대신 인스펙터의 "다른 순서로 이동" 셀렉트로 처리 (레인 간 드래그는 오조작 위험 대비 이득이 작다고 판단).
+- 새 큐는 직전 큐의 섹션·마디·카메라를 이어받음 (같은 섹션 연속 입력 속도).
+- **저장 모델**: 로컬에서 편집 → `저장`(Ctrl+S) 시 전체 문서 PUT. 미저장 상태 표시 + 페이지 이탈 경고. 라이브 중인 예배면 즉시 런타임에 반영(현재 큐 유지).
+- 새 Act/Cue id 는 클라이언트에서 UUID v4 생성. LAN HTTP(비보안 컨텍스트)에서는 `crypto.randomUUID` 가 없으므로 `getRandomValues` 폴백.
+- **JSON 내보내기**는 저장된 서버 버전 기준(미저장 시 비활성). **가져오기**는 항상 새 예배로 생성(기존 예배 덮어쓰기 없음).
+- 편집 연산은 `src/shared/editorOps.ts` 순수 함수로 분리하고 Vitest 로 검증.
+- 정적 파일 서빙은 `@fastify/static` wildcard 모드 (서버 실행 중 `npm run build` 해도 새 자산 즉시 반영).
