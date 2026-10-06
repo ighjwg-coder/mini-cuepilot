@@ -424,3 +424,11 @@ kbd {
   font-size: 12px;
   font-weight: 400;
 }
+.cam-links a {
+  min-width: 0;
+}
+.cam-links a div {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
