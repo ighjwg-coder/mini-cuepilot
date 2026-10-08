@@ -66,7 +66,7 @@ export async function buildApp({ repo, runtime, webDir, logger = false, https }:
     return { lanUrls };
   });
 
-  // ── 예배(큐시트) CRUD ──
+  // ── 행사(큐시트) CRUD ──
   app.get('/api/services', async () => repo.list());
 
   app.post('/api/services', async (req, reply) => {
@@ -76,27 +76,27 @@ export async function buildApp({ repo, runtime, webDir, logger = false, https }:
 
   app.get<{ Params: { id: string } }>('/api/services/:id', async (req) => {
     const service = await repo.get(req.params.id);
-    if (!service) throw new HttpError(404, '예배를 찾을 수 없습니다');
+    if (!service) throw new HttpError(404, '행사를 찾을 수 없습니다');
     return service;
   });
 
   app.put<{ Params: { id: string } }>('/api/services/:id', async (req) => {
     const input = parse(serviceInputSchema, req.body);
     const saved = await repo.save(req.params.id, input);
-    if (!saved) throw new HttpError(404, '예배를 찾을 수 없습니다');
+    if (!saved) throw new HttpError(404, '행사를 찾을 수 없습니다');
     runtime.updateService(saved);
     return saved;
   });
 
   app.delete<{ Params: { id: string } }>('/api/services/:id', async (req, reply) => {
-    if (!(await repo.remove(req.params.id))) throw new HttpError(404, '예배를 찾을 수 없습니다');
+    if (!(await repo.remove(req.params.id))) throw new HttpError(404, '행사를 찾을 수 없습니다');
     runtime.unloadIf(req.params.id);
     return reply.status(204).send();
   });
 
   app.get<{ Params: { id: string } }>('/api/services/:id/export', async (req, reply) => {
     const service = await repo.get(req.params.id);
-    if (!service) throw new HttpError(404, '예배를 찾을 수 없습니다');
+    if (!service) throw new HttpError(404, '행사를 찾을 수 없습니다');
     const name = `${service.date ?? 'service'}-${service.title}`.replace(/[^\p{L}\p{N}_-]+/gu, '_');
     return reply
       .header('content-disposition', `attachment; filename="service.json"; filename*=UTF-8''${encodeURIComponent(name)}.json`)
@@ -121,7 +121,7 @@ export async function buildApp({ repo, runtime, webDir, logger = false, https }:
     const { serviceId } = (req.body ?? {}) as { serviceId?: unknown };
     if (typeof serviceId !== 'string') throw new HttpError(400, 'serviceId 가 필요합니다');
     const service = await repo.get(serviceId);
-    if (!service) throw new HttpError(404, '예배를 찾을 수 없습니다');
+    if (!service) throw new HttpError(404, '행사를 찾을 수 없습니다');
     runtime.load(service);
     return runtime.snapshot();
   });

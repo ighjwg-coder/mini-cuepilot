@@ -69,7 +69,7 @@ export function parseImport(raw: unknown): ServiceInput {
   return serviceInputSchema.parse(raw);
 }
 
-/** 내보내기용: id 를 제거해 다른 서버/예배로 옮겨도 충돌 없게 함 */
+/** 내보내기용: id 를 제거해 다른 서버/행사로 옮겨도 충돌 없게 함 */
 export function toExportFile(service: Service, exportedAt = new Date().toISOString()) {
   return {
     format: EXPORT_FORMAT,

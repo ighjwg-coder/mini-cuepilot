@@ -15,7 +15,7 @@ describe('ServiceRepo', () => {
     id = (await repo.create(sampleServiceInput)).id;
   });
 
-  it('샘플 예배 생성 및 순서 보존 조회', async () => {
+  it('샘플 행사 생성 및 순서 보존 조회', async () => {
     const s = (await repo.get(id))!;
     expect(s.acts.map((a) => a.title)).toEqual(sampleServiceInput.acts.map((a) => a.title));
     expect(s.acts[0].cues.map((c) => c.note)).toEqual(sampleServiceInput.acts[0].cues.map((c) => c.note));
@@ -35,7 +35,7 @@ describe('ServiceRepo', () => {
     const moved = a0.cues[0];
     const input = serviceInputSchema.parse({
       ...s,
-      title: '수정된 예배',
+      title: '수정된 행사',
       acts: [
         { ...a1, cues: [...a1.cues].reverse() },
         { ...a0, cues: [...a0.cues.slice(1, 3), { camera: 7, shotSize: 'ECU', note: '새 큐' }] },
@@ -43,7 +43,7 @@ describe('ServiceRepo', () => {
       ],
     });
     const saved = (await repo.save(id, input))!;
-    expect(saved.title).toBe('수정된 예배');
+    expect(saved.title).toBe('수정된 행사');
     expect(saved.acts.map((a) => a.id)).toEqual([a1.id, a0.id, rest[0].id]);
     expect(saved.acts[0].cues.map((c) => c.id)).toEqual([...a1.cues].reverse().map((c) => c.id));
     expect(saved.acts[1].cues).toHaveLength(3);
@@ -52,14 +52,14 @@ describe('ServiceRepo', () => {
     expect(await db.prisma.act.count({ where: { serviceId: id } })).toBe(3);
   });
 
-  it('다른 예배의 id 로 저장하면 ConflictError', async () => {
-    const other = await repo.create({ title: '다른 예배', date: null, acts: [{ title: 'x', mode: 'MANUAL', bpm: null, beatsPerBar: 4, cues: [] }] });
+  it('다른 행사의 id 로 저장하면 ConflictError', async () => {
+    const other = await repo.create({ title: '다른 행사', date: null, acts: [{ title: 'x', mode: 'MANUAL', bpm: null, beatsPerBar: 4, cues: [] }] });
     const s = (await repo.get(id))!;
     const input = serviceInputSchema.parse({ ...s, acts: [{ ...s.acts[0], id: other.acts[0].id }] });
     await expect(repo.save(id, input)).rejects.toBeInstanceOf(ConflictError);
   });
 
-  it('없는 예배 저장/삭제', async () => {
+  it('없는 행사 저장/삭제', async () => {
     expect(await repo.save('nope', serviceInputSchema.parse({ title: 'x' }))).toBeNull();
     expect(await repo.remove('nope')).toBe(false);
   });

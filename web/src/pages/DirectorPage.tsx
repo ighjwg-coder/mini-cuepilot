@@ -50,7 +50,7 @@ export function DirectorPage() {
   return (
     <div className="director">
       <TopBar>
-        <span className="muted">{service ? `${service.date ?? ''} ${service.title}` : '로드된 예배 없음'}</span>
+        <span className="muted">{service ? `${service.date ?? ''} ${service.title}` : '로드된 행사 없음'}</span>
         <TimecodeBadge snapshot={snapshot} />
         <AtemBadge snapshot={snapshot} />
         <CamClients clients={show.clients} />
@@ -60,7 +60,7 @@ export function DirectorPage() {
       <main className="director-main">
         {!service || !state ? (
           <p className="muted">
-            로드된 예배가 없습니다. <a href="/">홈</a>에서 예배를 “라이브로 열기” 하세요.
+            로드된 행사가 없습니다. <a href="/">홈</a>에서 행사를 “라이브로 열기” 하세요.
           </p>
         ) : (
           <LivePanel service={service} snapshot={snapshot!} now={now} onCommand={command} />

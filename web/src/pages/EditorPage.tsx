@@ -59,7 +59,7 @@ function ServicePicker() {
       <TopBar />
       <main className="home">
         <section>
-          <h2>편집할 예배 선택</h2>
+          <h2>편집할 행사 선택</h2>
           {list.map((s) => (
             <div key={s.id} style={{ padding: '6px 0' }}>
               <Link to={`/editor/${s.id}`}>
@@ -67,7 +67,7 @@ function ServicePicker() {
               </Link>
             </div>
           ))}
-          {list.length === 0 && <p className="muted">예배가 없습니다. 홈에서 새로 만드세요.</p>}
+          {list.length === 0 && <p className="muted">행사가 없습니다. 홈에서 새로 만드세요.</p>}
         </section>
       </main>
     </>
@@ -160,14 +160,14 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
     try {
       const s = await api.importService(JSON.parse(await file.text()));
       navigate(`/editor/${s.id}`);
-      setMessage({ kind: 'ok', text: `"${s.title}" 을(를) 새 예배로 가져왔습니다` });
+      setMessage({ kind: 'ok', text: `"${s.title}" 을(를) 새 행사로 가져왔습니다` });
     } catch (e) {
       setMessage({ kind: 'err', text: `가져오기 실패: ${(e as Error).message}` });
     }
   };
 
   const remove = async () => {
-    if (!doc || !confirm(`"${doc.title}" 예배를 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    if (!doc || !confirm(`"${doc.title}" 행사를 삭제할까요? 되돌릴 수 없습니다.`)) return;
     await api.deleteService(serviceId);
     navigate('/');
   };
@@ -194,7 +194,7 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
   return (
     <div className="editor">
       <TopBar>
-        {isLive && <span className="badge" style={{ borderColor: 'var(--pgm)', color: '#fca5a5' }}>● 라이브 중인 예배</span>}
+        {isLive && <span className="badge" style={{ borderColor: 'var(--pgm)', color: '#fca5a5' }}>● 라이브 중인 행사</span>}
         {dirty && <span className="badge" style={{ borderColor: 'var(--hold)' }}>저장 안 됨</span>}
       </TopBar>
 

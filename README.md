@@ -2,7 +2,7 @@
 
 > v0.0.1 까지의 이름은 "Mini CuePilot" 이었습니다. 상용 제품 CuePilot 과의 혼동을 피하기 위해 이름을 바꿨습니다.
 
-교회 예배 라이브 중계용 **카메라 큐시트 진행 + ATEM 스위처 제어 + 카메라맨 모바일 CueScreen** 웹앱.
+공연·컨퍼런스·행사 등 **라이브 중계용 카메라 큐시트 진행 + ATEM 스위처 제어 + 카메라맨 모바일 CueScreen** 웹앱.
 
 ```
 에디터(큐시트 작성) ──► 디렉터 콘솔(GO/BACK/HOLD) ──► ATEM 스위처 (CUT/AUTO/매크로/DSK)
@@ -50,10 +50,10 @@
 
 ```bash
 npm install
-npm run setup      # .env 생성 → Prisma 클라이언트 생성 → SQLite(prisma/dev.db) 생성 → 샘플 예배 시드
+npm run setup      # .env 생성 → Prisma 클라이언트 생성 → SQLite(prisma/dev.db) 생성 → 샘플 행사 시드
 ```
 
-샘플 예배: **찬양 1(SECTION, 128BPM) · 찬양 2(SECTION, 72BPM) · 찬양 3(MANUAL) · 대표기도(MANUAL, DSK 자막) · 설교(TIMECODE, 매크로)**
+샘플 행사: **오프닝 공연 1곡(SECTION, 128BPM) · 공연 2곡(SECTION, 72BPM) · 공연 3곡(MANUAL) · 인사말(MANUAL, DSK 자막) · 메인 강연(TIMECODE, 매크로)**
 
 ### 개발 모드 (코드 수정하며 실행)
 
@@ -63,14 +63,14 @@ npm run dev
 
 | 주소 | 화면 |
 |---|---|
-| http://localhost:5173 | 홈 (예배 목록) |
+| http://localhost:5173 | 홈 (행사 목록) |
 | http://localhost:5173/director | 디렉터 콘솔 |
 | http://localhost:5173/editor | 에디터 |
 | http://localhost:5173/cam/1 | CueScreen (CAM 1) |
 
 > 개발 모드는 Vite(5173)가 API/WS 를 서버(38080)로 프록시합니다.
 
-### 운영 모드 (예배 당일 권장)
+### 운영 모드 (행사 당일 권장)
 
 ```bash
 npm run build      # 웹 빌드 → dist/web
@@ -139,7 +139,7 @@ git push --follow-tags   # → GitHub Actions 가 Windows 설치 파일을 만�
 | `Delete` | 선택 큐 삭제 |
 
 - **JSON 내보내기**: 에디터 상단 → `{date}-{title}.json` 다운로드 (id 제외, 다른 PC 이식 가능)
-- **JSON 가져오기**: 홈/에디터 → 항상 **새 예배**로 생성
+- **JSON 가져오기**: 홈/에디터 → 항상 **새 행사**로 생성
 
 ### atemAction 값
 
@@ -280,13 +280,13 @@ CueScreen 하단에 `화면 유지 ON` / `화면 유지 ON(호환)` / `화면 �
 
 | 메서드 | 경로 | 설명 |
 |---|---|---|
-| GET | `/api/services` | 예배 목록 |
-| POST | `/api/services` | 새 예배 `{ title, date }` |
+| GET | `/api/services` | 행사 목록 |
+| POST | `/api/services` | 새 행사 `{ title, date }` |
 | GET / PUT / DELETE | `/api/services/:id` | 조회 / 전체 저장 / 삭제 |
 | GET | `/api/services/:id/export` | JSON 내보내기 |
-| POST | `/api/import` | JSON 가져오기 (새 예배 생성) |
+| POST | `/api/import` | JSON 가져오기 (새 행사 생성) |
 | GET | `/api/show` | 라이브 상태 스냅샷 |
-| POST | `/api/show/load` | 라이브 예배 교체 `{ serviceId }` |
+| POST | `/api/show/load` | 라이브 행사 교체 `{ serviceId }` |
 | POST | `/api/show/command` | 진행 명령 |
 | GET | `/api/atem` | ATEM 상태 |
 | WS | `/ws` | 실시간 상태 (`src/shared/protocol.ts`) |
@@ -297,17 +297,17 @@ CueScreen 하단에 `화면 유지 ON` / `화면 유지 ON(호환)` / `화면 �
 {
   "format": "camcue/service@1",
   "service": {
-    "title": "주일 2부 예배",
+    "title": "가을 정기 공연",
     "date": "2026-10-11",
     "acts": [
       {
-        "title": "찬양 1",
+        "title": "오프닝 공연",
         "mode": "SECTION",
         "bpm": 128,
         "beatsPerBar": 4,
         "cues": [
-          { "camera": 5, "shotSize": "WS", "note": "회중 와이드", "section": "V1", "bars": 8, "atemAction": "auto" },
-          { "camera": 3, "shotSize": "CU", "note": "인도자", "section": "CH", "bars": 8, "atemAction": "cut" }
+          { "camera": 5, "shotSize": "WS", "note": "객석 와이드", "section": "V1", "bars": 8, "atemAction": "auto" },
+          { "camera": 3, "shotSize": "CU", "note": "메인 보컬", "section": "CH", "bars": 8, "atemAction": "cut" }
         ]
       }
     ]
@@ -330,5 +330,5 @@ docs/            DECISIONS.md
 
 ### 한계 / 다음 단계
 - 외부 타임코드(LTC/MTC) 수신기 미구현 — `TimecodeSource` 인터페이스 구현체만 추가하면 됨 (`src/server/timecode.ts`)
-- 인증 없음 (교회 내부 LAN 전제)
+- 인증 없음 (행사장 내부 LAN 전제)
 - 카메라 번호 ↔ ATEM 입력 매핑 테이블, 다중 M/E, 라이브 위치 영속화 미지원

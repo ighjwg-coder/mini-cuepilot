@@ -49,7 +49,7 @@
 - SECTION 자동 진행 시 새 큐 시작 시각 = 이전 큐 시작 + 길이 (TICK 지연과 무관하게 박자 누적 오차 없음). 지연된 TICK 한 번에 여러 큐를 넘기면 ATEM 효과도 순서대로 모두 발생.
 - 섹션 라벨이 없는 큐, 또는 `bars`/`bpm` 이 없는 큐는 SECTION 모드에서도 GO 로 한 큐씩 진행.
 - 같은 섹션을 연속 반복(예: 후렴 2회)하려면 섹션 라벨을 달리 하거나(CH, CH2) 사이에 다른 섹션이 있어야 블록이 분리됨.
-- Act 경계는 모드와 관계없이 항상 GO 로 넘어감 (자동으로 다음 순서로 넘어가지 않음 — 예배 안전성 우선).
+- Act 경계는 모드와 관계없이 항상 GO 로 넘어감 (자동으로 다음 순서로 넘어가지 않음 — 라이브 안전성 우선).
 
 ### BACK
 - 직전 큐로 이동(Act 경계 넘음)하고 해당 큐의 ATEM 액션을 **다시 전송** → 화면도 이전 샷으로 복귀.
@@ -79,13 +79,13 @@
 |---|---|
 | WebSocket | `@fastify/websocket` 대신 `ws` 를 Fastify 의 http 서버 `upgrade` 이벤트에 직접 연결 (요청서 "WebSocket(ws)"). 경로 `/ws` |
 | 상태 보관 | `ShowRuntime` 이 메모리에 엔진 상태 보관. 서버 재시작 시 STANDBY 로 시작 (라이브 위치는 DB 저장 안 함 — 재시작 후 디렉터가 JUMP 로 복귀) |
-| 시작 시 로드 | 가장 최근 수정된 예배를 자동 로드. 디렉터 콘솔에서 교체 가능(`POST /api/show/load`) |
+| 시작 시 로드 | 가장 최근 수정된 행사를 자동 로드. 디렉터 콘솔에서 교체 가능(`POST /api/show/load`) |
 | 자동 진행 주기 | 20ms 간격 TICK (SECTION Act 에서만). 박자 기준 시각은 엔진이 보정하므로 타이머 지터는 누적되지 않음 |
-| 명령 권한 | WS 에서 `hello.role = director` 인 클라이언트만 GO/BACK/HOLD/JUMP/RESET 허용. CueScreen(cam)은 읽기 전용. 인증은 없음(교회 내부 LAN 전제) |
+| 명령 권한 | WS 에서 `hello.role = director` 인 클라이언트만 GO/BACK/HOLD/JUMP/RESET 허용. CueScreen(cam)은 읽기 전용. 인증은 없음(행사장 내부 LAN 전제) |
 | HTTP 명령 | `POST /api/show/command` 추가 — Bitfocus Companion/Stream Deck 의 HTTP 액션으로 GO 버튼 매핑 가능 |
 | 시간 동기화 | `ping`/`pong` 으로 서버 시각 오프셋 계산 → 폰 시계가 틀려도 카운트다운 정확 |
 | 끊김 감지 | 15초 주기 WS ping/pong, 응답 없으면 정리 (폰 잠금/와이파이 전환 대비). 클라이언트는 자동 재접속 |
-| 에디터 저장 | 전체 문서 PUT. 클라이언트가 Act/Cue id 를 유지해 보내면 upsert, 빠진 항목 삭제. 다른 예배 소유 id 는 409 |
+| 에디터 저장 | 전체 문서 PUT. 클라이언트가 Act/Cue id 를 유지해 보내면 upsert, 빠진 항목 삭제. 다른 행사 소유 id 는 409 |
 | JSON 내보내기 | `{ format: "camcue/service@1", exportedAt, service }`, id 제거(다른 PC로 이식 시 충돌 방지). 가져오기는 래퍼 없는 서비스 객체도 허용 |
 | 테스트 DB | Vitest globalSetup 에서 `prisma db push` 로 템플릿 SQLite 생성 → 테스트 파일마다 복사해 독립 사용 |
 
@@ -107,7 +107,7 @@
 - 탈리: PGM = 빨간 두꺼운 테두리 + 배경 붉게 + ON AIR 배지 깜빡임, PVW = 초록 테두리(“곧 내 차례” 준비). ATEM 실제 상태 우선.
 - ON AIR 진입 시 진동(안드로이드, 사용자 탭 이후).
 - **화면 꺼짐 방지**: 첫 진입 시 "탭해서 시작" 오버레이 → 사용자 제스처로 Wake Lock + 전체화면 요청.
-  - Wake Lock API 는 **보안 컨텍스트(HTTPS/localhost)에서만** 동작. 교회 LAN 에서 `http://192.168.x.x` 로 접속하면 사용 불가 → 음소거 반복 비디오(canvas `captureStream`) 재생 폴백(NoSleep 방식, best-effort).
+  - Wake Lock API 는 **보안 컨텍스트(HTTPS/localhost)에서만** 동작. 현장 LAN 에서 `http://192.168.x.x` 로 접속하면 사용 불가 → 음소거 반복 비디오(canvas `captureStream`) 재생 폴백(NoSleep 방식, best-effort).
   - 확실히 하려면 `TLS_CERT`/`TLS_KEY` 환경변수로 HTTPS 서비스(README 의 mkcert 안내) 또는 폰 자동 잠금 해제.
 - 탭 전환·잠금 후 복귀 시 Wake Lock 재요청 + WebSocket 즉시 재접속.
 
@@ -118,9 +118,9 @@
 - **드래그 정렬**: `@dnd-kit/sortable` (5px 이상 움직여야 드래그 → 클릭 선택과 구분). 키보드 정렬도 지원(`Alt+←/→`).
 - **Act 간 큐 이동**은 드래그 대신 인스펙터의 "다른 순서로 이동" 셀렉트로 처리 (레인 간 드래그는 오조작 위험 대비 이득이 작다고 판단).
 - 새 큐는 직전 큐의 섹션·마디·카메라를 이어받음 (같은 섹션 연속 입력 속도).
-- **저장 모델**: 로컬에서 편집 → `저장`(Ctrl+S) 시 전체 문서 PUT. 미저장 상태 표시 + 페이지 이탈 경고. 라이브 중인 예배면 즉시 런타임에 반영(현재 큐 유지).
+- **저장 모델**: 로컬에서 편집 → `저장`(Ctrl+S) 시 전체 문서 PUT. 미저장 상태 표시 + 페이지 이탈 경고. 라이브 중인 행사면 즉시 런타임에 반영(현재 큐 유지).
 - 새 Act/Cue id 는 클라이언트에서 UUID v4 생성. LAN HTTP(비보안 컨텍스트)에서는 `crypto.randomUUID` 가 없으므로 `getRandomValues` 폴백.
-- **JSON 내보내기**는 저장된 서버 버전 기준(미저장 시 비활성). **가져오기**는 항상 새 예배로 생성(기존 예배 덮어쓰기 없음).
+- **JSON 내보내기**는 저장된 서버 버전 기준(미저장 시 비활성). **가져오기**는 항상 새 행사로 생성(기존 행사 덮어쓰기 없음).
 - 편집 연산은 `src/shared/editorOps.ts` 순수 함수로 분리하고 Vitest 로 검증.
 - 정적 파일 서빙은 `@fastify/static` wildcard 모드 (서버 실행 중 `npm run build` 해도 새 자산 즉시 반영).
 
@@ -158,6 +158,15 @@
 - GitHub Actions CI(`.github/workflows/ci.yml`): `npm ci → typecheck → test → build`.
 - Node 20.12+ 요구 (`process.loadEnvFile`).
 
+## 12. 범용 용어 (0.0.3~)
+
+| 항목 | 결정 | 이유 |
+|---|---|---|
+| 화면·문서 용어 | 예배 → **행사**, 찬양/대표기도/설교 → 공연/인사말/강연, 인도자/회중/강대상 → 보컬/객석/연단 | 사용자 요청: 공연·컨퍼런스 등 일반 행사에도 거부감 없이 쓰도록 신앙 용어 제거 |
+| 내부 이름 | 코드의 `Service`(DB 모델·API 경로 `/api/services`)는 유지 | 사용자에게 보이지 않고, 바꾸면 저장 데이터·API 호환이 깨짐 |
+| 기존 데이터 | 사용자가 이미 만든 큐시트(예전 샘플 포함)는 건드리지 않음 | 사용자 데이터 임의 수정 금지. 예전 샘플은 홈에서 직접 삭제 가능 |
+| 변경 이력 | CHANGELOG 의 과거 버전 기록은 당시 표현 그대로 둠 | 이력은 사실 기록 |
+
 ## 11. 이름 변경 · 포트 (0.0.2~)
 
 | 항목 | 결정 | 이유 |
@@ -180,8 +189,8 @@
 | 빌드 위치 | GitHub Actions `windows-latest` | Windows 용 Prisma 엔진을 정식 경로로 생성. 태그 push 시 Release 자동 게시, PR 에서는 아티팩트만 |
 | 런타임 | 빌드에 쓴 Node 22 `node.exe` 동봉 | PC 에 Node 설치 불필요 |
 | 데이터 위치 | `%LOCALAPPDATA%\CamCue` (`config.env`, `camcue.db`) | Program Files 는 쓰기 불가, 업데이트/제거 시 큐시트 보존 |
-| 첫 실행 | 빌드 시 만든 빈 `template.db` 복사 + 샘플 예배 시드 | 사용자 PC 에서 prisma CLI(스키마 엔진) 실행 불필요 |
-| 방화벽 | 설치 옵션으로 `node.exe` 프로그램 기준 인바운드 허용, 모든 프로필 | 교회 Wi-Fi 가 '공용 네트워크'로 분류되는 경우가 많음. 제거 시 규칙 삭제 |
+| 첫 실행 | 빌드 시 만든 빈 `template.db` 복사 + 샘플 행사 시드 | 사용자 PC 에서 prisma CLI(스키마 엔진) 실행 불필요 |
+| 방화벽 | 설치 옵션으로 `node.exe` 프로그램 기준 인바운드 허용, 모든 프로필 | 행사장 Wi-Fi 가 '공용 네트워크'로 분류되는 경우가 많음. 제거 시 규칙 삭제 |
 | 용량 | 런타임 의존성만 + Prisma 미사용 DB 엔진(WASM)·소스맵 제거 | 386MB → 약 200MB(압축 시 약 60MB) |
 | 코드 서명 | 미적용 | 인증서 비용. SmartScreen 경고 안내로 대체 |
 | 실행기 | `.cmd` + 서버 콘솔 창 | 창이 떠 있어야 "서버 동작 중"이 명확하고, 닫으면 종료되는 직관적 모델 |

@@ -82,7 +82,7 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
     this.unsubs.splice(0).forEach((u) => u());
   }
 
-  /** 라이브 대상 예배 교체 → STANDBY 로 초기화 */
+  /** 라이브 대상 행사 교체 → STANDBY 로 초기화 */
   load(service: Service | null) {
     this.opts.timecode.stop();
     this._service = service;
@@ -91,7 +91,7 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
     this.emitState();
   }
 
-  /** 에디터 저장 반영. 같은 예배면 진행 위치 보존 */
+  /** 에디터 저장 반영. 같은 행사면 진행 위치 보존 */
   updateService(service: Service) {
     if (!this._service || this._service.id !== service.id) return;
     const prev = this._service;
@@ -102,7 +102,7 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
     this.emitState();
   }
 
-  /** 예배 삭제 시 */
+  /** 행사 삭제 시 */
   unloadIf(serviceId: string) {
     if (this._service?.id === serviceId) this.load(null);
   }

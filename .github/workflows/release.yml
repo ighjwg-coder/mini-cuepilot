@@ -77,7 +77,7 @@ jobs:
             if (-not $health) { throw '서버가 시작되지 않았습니다' }
             if ($health.version -ne '${{ steps.ver.outputs.version }}') { throw "버전 불일치: $($health.version)" }
             $services = @(Invoke-RestMethod http://localhost:3456/api/services)
-            if ($services.Count -ne 1) { throw "샘플 예배 시드 실패 ($($services.Count))" }
+            if ($services.Count -ne 1) { throw "샘플 행사 시드 실패 ($($services.Count))" }
             $page = Invoke-WebRequest http://localhost:3456/cam/1 -UseBasicParsing
             if ($page.Content -notmatch 'CamCue') { throw '웹 UI 서빙 실패' }
             $go = Invoke-RestMethod -Method Post http://localhost:3456/api/show/command -ContentType 'application/json' -Body '{"command":"GO"}'

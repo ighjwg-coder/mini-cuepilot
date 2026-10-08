@@ -35,7 +35,7 @@ const repo = new ServiceRepo(prisma);
 const atem = createAtemAdapter(process.env.ATEM_HOST);
 const runtime = new ShowRuntime({ atem, timecode: new SimulatedTimecodeSource() });
 
-// 설치 후 첫 실행: 샘플 예배를 넣어 바로 둘러볼 수 있게 함
+// 설치 후 첫 실행: 샘플 행사를 넣어 바로 둘러볼 수 있게 함
 if (dataDir?.freshDb) await repo.create(sampleServiceInput);
 
 runtime.load(await repo.latest());
