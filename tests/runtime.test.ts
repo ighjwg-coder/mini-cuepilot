@@ -51,7 +51,7 @@ describe('ShowRuntime (ATEM 미연결)', () => {
     expect(runtime.state.timecodeSec).toBe(12);
     runtime.command({ command: 'BACK' }); // s-1 (같은 Act)
     expect(tc.running).toBe(true);
-    runtime.command({ command: 'BACK' }); // 기도 Act 로 이탈
+    runtime.command({ command: 'BACK' }); // 인사말 Act 로 이탈
     expect(cueId()).toBe('p-2');
     expect(tc.running).toBe(false);
   });
@@ -75,7 +75,7 @@ describe('ShowRuntime (ATEM 미연결)', () => {
     expect(runtime.state.actIndex).toBe(2);
   });
 
-  it('다른 예배 updateService 는 무시, unloadIf 로 언로드', () => {
+  it('다른 행사 updateService 는 무시, unloadIf 로 언로드', () => {
     runtime.updateService({ ...svc, id: 'other', acts: [] });
     expect(runtime.service!.id).toBe('svc');
     runtime.unloadIf('svc');

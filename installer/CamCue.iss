@@ -71,7 +71,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeCmd}"; WorkingDir: "{
 [Run]
 ; v0.0.1 방화벽 규칙 제거
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Mini CuePilot"""; Flags: runhidden
-; 기존 규칙 제거 후 추가 (재설치 시 중복 방지). 교회 Wi-Fi 가 '공용 네트워크'로 잡히는 경우가 많아 모든 프로필 허용
+; 기존 규칙 제거 후 추가 (재설치 시 중복 방지). 행사장 Wi-Fi 가 '공용 네트워크'로 잡히는 경우가 많아 모든 프로필 허용
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""CamCue"""; Flags: runhidden; Tasks: firewall
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""CamCue"" dir=in action=allow program=""{app}\node\node.exe"" enable=yes profile=any"; Flags: runhidden; Tasks: firewall
 Filename: "{app}\{#AppExeCmd}"; Description: "지금 CamCue 실행"; Flags: postinstall nowait skipifsilent shellexec

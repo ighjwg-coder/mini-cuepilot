@@ -2,7 +2,7 @@
   "name": "camcue",
   "version": "0.0.2",
   "private": true,
-  "description": "CamCue(캠큐) — 교회 예배 라이브 중계용 카메라 큐 진행 + ATEM 제어 + 카메라맨 폰 CueScreen",
+  "description": "CamCue(캠큐) — 공연·컨퍼런스·행사 라이브 중계용 카메라 큐 진행 + ATEM 제어 + 카메라맨 폰 CueScreen",
   "type": "module",
   "engines": {
     "node": ">=20.12"

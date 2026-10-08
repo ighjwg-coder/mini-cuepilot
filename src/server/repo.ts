@@ -61,13 +61,13 @@ export class ServiceRepo {
     return row ? toDomain(row) : null;
   }
 
-  /** 가장 최근에 수정된 예배 (서버 시작 시 기본 로드) */
+  /** 가장 최근에 수정된 행사 (서버 시작 시 기본 로드) */
   async latest(): Promise<Service | null> {
     const row = await this.db.service.findFirst({ orderBy: { updatedAt: 'desc' }, include });
     return row ? toDomain(row) : null;
   }
 
-  /** 새 예배 생성. 입력의 id 는 무시하고 전부 새로 발급 (가져오기에도 사용) */
+  /** 새 행사 생성. 입력의 id 는 무시하고 전부 새로 발급 (가져오기에도 사용) */
   async create(input: ServiceInput): Promise<Service> {
     const row = await this.db.service.create({
       data: {
@@ -87,7 +87,7 @@ export class ServiceRepo {
   }
 
   /**
-   * 예배 전체 저장 (에디터). id 가 있는 Act/Cue 는 갱신, 없으면 생성, 빠진 것은 삭제.
+   * 행사 전체 저장 (에디터). id 가 있는 Act/Cue 는 갱신, 없으면 생성, 빠진 것은 삭제.
    * id 를 보존해야 라이브 중 편집해도 진행 위치(현재 큐)가 유지된다.
    */
   async save(id: string, input: ServiceInput): Promise<Service | null> {
@@ -100,7 +100,7 @@ export class ServiceRepo {
     const ownActIds = new Set(existing.acts.map((a) => a.id));
     const ownCueIds = new Set(existing.acts.flatMap((a) => a.cues.map((c) => c.id)));
 
-    // 다른 예배 소유의 id 를 넘기면 거부 (덮어쓰기 방지)
+    // 다른 행사 소유의 id 를 넘기면 거부 (덮어쓰기 방지)
     const foreignActIds = input.acts.map((a) => a.id).filter((x): x is string => !!x && !ownActIds.has(x));
     const foreignCueIds = input.acts
       .flatMap((a) => a.cues.map((c) => c.id))
@@ -109,7 +109,7 @@ export class ServiceRepo {
       foreignActIds.length ? this.db.act.count({ where: { id: { in: foreignActIds } } }) : 0,
       foreignCueIds.length ? this.db.cue.count({ where: { id: { in: foreignCueIds } } }) : 0,
     ]);
-    if (actClash || cueClash) throw new ConflictError('다른 예배에 속한 Act/Cue id 가 포함되어 있습니다');
+    if (actClash || cueClash) throw new ConflictError('다른 행사에 속한 Act/Cue id 가 포함되어 있습니다');
 
     const acts = input.acts.map((a) => ({ ...a, id: a.id ?? randomUUID(), cues: a.cues.map((c) => ({ ...c, id: c.id ?? randomUUID() })) }));
     const keepActIds = acts.map((a) => a.id);

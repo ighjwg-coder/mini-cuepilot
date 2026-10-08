@@ -22,17 +22,17 @@ export function act(partial: Partial<Act> & { id: string; cues: Cue[] }): Act {
 }
 
 /**
- * 테스트용 예배
- *  0. 찬양 (SECTION, 120BPM 4/4 → 1마디 = 2000ms)
+ * 테스트용 행사
+ *  0. 공연 (SECTION, 120BPM 4/4 → 1마디 = 2000ms)
  *     V1: c1(2마디) → c2(2마디) | CH: c3(4마디) → c1(4마디, auto 트랜지션)
- *  1. 기도 (MANUAL): c2(30s) → c3
+ *  1. 인사말 (MANUAL): c2(30s) → c3
  *  2. 광고 (빈 Act)
- *  3. 설교 (TIMECODE): c1 @0s(10s) → c2 @10s(20s) → c3 @45s(tcInSec)
+ *  3. 강연 (TIMECODE): c1 @0s(10s) → c2 @10s(20s) → c3 @45s(tcInSec)
  */
 export function sampleService(): Service {
   return {
     id: 'svc',
-    title: '테스트 예배',
+    title: '테스트 행사',
     date: '2026-10-11',
     acts: [
       act({
