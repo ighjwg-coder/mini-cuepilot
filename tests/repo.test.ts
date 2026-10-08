@@ -108,5 +108,7 @@ describe('입력 검증', () => {
   it('가져오기는 래퍼 없는 서비스 객체도 허용', () => {
     expect(parseImport({ title: 'bare', acts: [] }).title).toBe('bare');
     expect(() => parseImport({ format: 'mini-cuepilot/service@1', service: {} })).toThrow();
+    // v0.0.1(Mini CuePilot)에서 내보낸 파일도 가져오기 가능
+    expect(parseImport({ format: 'mini-cuepilot/service@1', service: { title: '예전 파일', acts: [] } }).title).toBe('예전 파일');
   });
 });

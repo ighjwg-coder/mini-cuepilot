@@ -62,7 +62,7 @@ git push --follow-tags
 
 1. Windows 서버에서 테스트 실행
 2. 배포 패키지 조립 (`scripts/package.mjs`) + 설치판 첫 실행 스모크 테스트
-3. `MiniCuePilot-Setup-v0.0.2-win-x64.exe` (Inno Setup) / `MiniCuePilot-portable-v0.0.2-win-x64.zip` 생성
+3. `CamCue-Setup-v0.0.2-win-x64.exe` (Inno Setup) / `CamCue-portable-v0.0.2-win-x64.zip` 생성
 4. GitHub **Releases** 에 CHANGELOG 내용을 노트로 하여 게시
 
 진행 상황: 저장소 → Actions 탭. 약 5~10분.
@@ -83,8 +83,8 @@ PR 을 열면 같은 워크플로가 Windows 빌드까지 수행하고 결과물
 ## 배포판 구조 (참고)
 
 ```
-MiniCuePilot/
-├─ MiniCuePilot.cmd        실행기 (설치판 바로가기가 이것을 실행)
+CamCue/
+├─ CamCue.cmd        실행기 (설치판 바로가기가 이것을 실행)
 ├─ node/node.exe           Node.js 런타임 (빌드 시점 Node 22)
 ├─ app/dist/server/        서버 번들
 ├─ app/dist/web/           웹 UI
@@ -93,9 +93,9 @@ MiniCuePilot/
 ├─ icon.ico
 └─ 사용법.txt
 
-%LOCALAPPDATA%\MiniCuePilot\
+%LOCALAPPDATA%\CamCue\
 ├─ config.env              설정 (PORT, ATEM_HOST …)
-└─ cuepilot.db             큐시트 데이터
+└─ camcue.db             큐시트 데이터
 ```
 
-- DB 스키마가 바뀌는 버전을 낼 때는 기존 `cuepilot.db` 마이그레이션 처리가 필요합니다 (현재 0.0.1 은 최초 스키마).
+- DB 스키마가 바뀌는 버전을 낼 때는 기존 `camcue.db` 마이그레이션 처리가 필요합니다 (현재 0.0.1 은 최초 스키마).

@@ -1,5 +1,5 @@
-// 배포 패키지 조립: release/MiniCuePilot/
-//   MiniCuePilot.cmd        ← 더블클릭 실행 (Windows)
+// 배포 패키지 조립: release/CamCue/
+//   CamCue.cmd        ← 더블클릭 실행 (Windows)
 //   node/node.exe           ← Node.js 런타임 (PC에 Node 설치 불필요)
 //   app/dist/server/        ← 서버 번들 (esbuild)
 //   app/dist/web/           ← 웹 UI (vite build)
@@ -16,7 +16,7 @@ import { build } from 'esbuild';
 const isWin = process.platform === 'win32';
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const version = pkg.version;
-const out = resolve('release', 'MiniCuePilot');
+const out = resolve('release', 'CamCue');
 const app = join(out, 'app');
 
 const run = (cmd, opts = {}) => {
@@ -26,7 +26,7 @@ const run = (cmd, opts = {}) => {
 /** 메모장/cmd 호환: CRLF */
 const crlf = (s) => s.replace(/\r?\n/g, '\r\n');
 
-console.log(`[package] Mini CuePilot v${version} (${process.platform}-${process.arch})`);
+console.log(`[package] CamCue v${version} (${process.platform}-${process.arch})`);
 rmSync(out, { recursive: true, force: true });
 mkdirSync(app, { recursive: true });
 
@@ -86,14 +86,14 @@ copyFileSync(process.execPath, join(out, 'node', isWin ? 'node.exe' : 'node'));
 // 7) 실행기 + 안내문
 copyFileSync('installer/icon.ico', join(out, 'icon.ico'));
 writeFileSync(
-  join(out, 'MiniCuePilot.cmd'),
+  join(out, 'CamCue.cmd'),
   crlf(`@echo off
-rem Mini CuePilot launcher
+rem CamCue launcher
 chcp 65001 >nul
-title Mini CuePilot v${version}
+title CamCue v${version}
 cd /d "%~dp0"
-set "CUEPILOT_DATA_DIR=%LOCALAPPDATA%\\MiniCuePilot"
-set "CUEPILOT_OPEN_BROWSER=1"
+set "CAMCUE_DATA_DIR=%LOCALAPPDATA%\\CamCue"
+set "CAMCUE_OPEN_BROWSER=1"
 "%~dp0node\\node.exe" "%~dp0app\\dist\\server\\index.mjs"
 if errorlevel 1 pause
 `),
@@ -104,8 +104,8 @@ if (!isWin) {
     sh,
     `#!/bin/sh
 cd "$(dirname "$0")"
-export CUEPILOT_DATA_DIR="\${CUEPILOT_DATA_DIR:-\${XDG_DATA_HOME:-$HOME/.local/share}/MiniCuePilot}"
-export CUEPILOT_OPEN_BROWSER="\${CUEPILOT_OPEN_BROWSER:-1}"
+export CAMCUE_DATA_DIR="\${CAMCUE_DATA_DIR:-\${XDG_DATA_HOME:-$HOME/.local/share}/CamCue}"
+export CAMCUE_OPEN_BROWSER="\${CAMCUE_OPEN_BROWSER:-1}"
 exec ./node/node app/dist/server/index.mjs
 `,
   );
