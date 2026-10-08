@@ -5,6 +5,7 @@ import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { ZodError, type ZodType } from 'zod';
 import { commandSchema, formatZodError, parseImport, serviceInputSchema, toExportFile } from '../shared/schema';
+import { APP_VERSION } from '../shared/version';
 import { ConflictError, type ServiceRepo } from './repo';
 import type { ShowRuntime } from './runtime';
 import { attachWebSocket } from './ws';
@@ -14,7 +15,8 @@ export interface AppDeps {
   runtime: ShowRuntime;
   /** vite build 결과물 경로. 존재하면 정적 서빙 + SPA fallback */
   webDir?: string;
-  logger?: boolean;
+  /** true = 전체 요청 로그, { level } = 지정 수준 이상만 */
+  logger?: boolean | { level: string };
   /** 지정 시 HTTPS 로 서비스 (폰에서 Wake Lock API 사용 가능) */
   https?: { key: Buffer; cert: Buffer };
 }
@@ -51,7 +53,7 @@ export async function buildApp({ repo, runtime, webDir, logger = false, https }:
   app.addHook('onClose', async () => ws.close());
 
   // ── 상태 ──
-  app.get('/api/health', async () => ({ ok: true, wsClients: ws.clientCount() }));
+  app.get('/api/health', async () => ({ ok: true, version: APP_VERSION, wsClients: ws.clientCount() }));
   app.get('/api/atem', async () => runtime.snapshot().atem);
 
   /** 폰 접속용 LAN 주소. 포트는 요청 Host 헤더 기준(개발 모드 Vite 5173 / 운영 3000 모두 대응) */

@@ -1,0 +1,133 @@
+name: Windows 배포판
+
+# - v* 태그 push  → Windows 빌드 → GitHub Releases 에 설치 파일 + 포터블 ZIP 업로드
+# - PR / 수동 실행 → 같은 빌드를 수행하고 Actions 아티팩트로만 보관 (배포 전 검증)
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 버전 확인 (태그 = package.json)
+        id: ver
+        run: |
+          $v = node -p "require('./package.json').version"
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$v") {
+            Write-Error "태그 $env:GITHUB_REF_NAME 와 package.json 버전 v$v 가 다릅니다"; exit 1
+          }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          "prerelease=$($v.StartsWith('0.').ToString().ToLower())" >> $env:GITHUB_OUTPUT
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: 패키지 조립
+        run: node scripts/package.mjs
+
+      - name: 스모크 테스트 (설치판 첫 실행 흐름)
+        run: |
+          $env:CUEPILOT_DATA_DIR = Join-Path $env:RUNNER_TEMP 'cuepilot-data'
+          $env:CUEPILOT_OPEN_BROWSER = '0'
+          $env:PORT = '3456'
+          $p = Start-Process -FilePath 'release\MiniCuePilot\node\node.exe' `
+            -ArgumentList 'release\MiniCuePilot\app\dist\server\index.mjs' `
+            -RedirectStandardOutput smoke.out.log -RedirectStandardError smoke.err.log -PassThru
+          try {
+            $health = $null
+            for ($i = 0; $i -lt 40 -and -not $health; $i++) {
+              Start-Sleep -Seconds 1
+              try { $health = Invoke-RestMethod http://localhost:3456/api/health } catch {}
+            }
+            if (-not $health) { throw '서버가 시작되지 않았습니다' }
+            if ($health.version -ne '${{ steps.ver.outputs.version }}') { throw "버전 불일치: $($health.version)" }
+            $services = @(Invoke-RestMethod http://localhost:3456/api/services)
+            if ($services.Count -ne 1) { throw "샘플 예배 시드 실패 ($($services.Count))" }
+            $page = Invoke-WebRequest http://localhost:3456/cam/1 -UseBasicParsing
+            if ($page.Content -notmatch 'Mini CuePilot') { throw '웹 UI 서빙 실패' }
+            $go = Invoke-RestMethod -Method Post http://localhost:3456/api/show/command -ContentType 'application/json' -Body '{"command":"GO"}'
+            if ($go.state.cueIndex -ne 0) { throw 'GO 실패' }
+            if (-not (Test-Path (Join-Path $env:CUEPILOT_DATA_DIR 'config.env'))) { throw 'config.env 미생성' }
+            Write-Host "스모크 테스트 통과: v$($health.version)"
+          } finally {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            Get-Content smoke.out.log, smoke.err.log -ErrorAction SilentlyContinue
+          }
+
+      - name: 포터블 ZIP
+        run: |
+          $v = '${{ steps.ver.outputs.version }}'
+          Push-Location release
+          7z a -tzip -mx=7 "MiniCuePilot-portable-v$v-win-x64.zip" MiniCuePilot | Out-Null
+          Pop-Location
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: 설치 파일 (Inno Setup)
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc /Q "/DAppVersion=${{ steps.ver.outputs.version }}" installer\MiniCuePilot.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: 릴리스 노트
+        run: |
+          $v = '${{ steps.ver.outputs.version }}'
+          $notes = npx tsx scripts/changelog.ts notes $v
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          @"
+          ## 다운로드
+
+          | 파일 | 용도 |
+          |---|---|
+          | ``MiniCuePilot-Setup-v$v-win-x64.exe`` | **설치판 (권장)** — 시작 메뉴·바탕화면 바로가기, 방화벽 자동 허용 |
+          | ``MiniCuePilot-portable-v$v-win-x64.zip`` | 포터블 — 압축 풀고 ``MiniCuePilot.cmd`` 실행 (관리자 권한 불필요) |
+
+          - Windows 10/11 64bit. Node.js 설치 불필요 (내장)
+          - 처음 실행 시 "Windows의 PC 보호" 창 → **추가 정보 → 실행** (코드 서명 미적용)
+          - 큐시트·설정은 ``%LOCALAPPDATA%\MiniCuePilot`` 에 보관되어 업데이트해도 유지됩니다
+
+          ## 변경 사항
+
+          "@ + ($notes -join "`n") | Out-File -Encoding utf8 release\NOTES.md
+          Get-Content release\NOTES.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MiniCuePilot-v${{ steps.ver.outputs.version }}-windows
+          path: |
+            release/*.zip
+            release/*.exe
+          retention-days: 14
+
+      - name: GitHub Release 게시
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Mini CuePilot v${{ steps.ver.outputs.version }}
+          body_path: release/NOTES.md
+          prerelease: ${{ steps.ver.outputs.prerelease == 'true' }}
+          files: |
+            release/*.zip
+            release/*.exe
