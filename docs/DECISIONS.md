@@ -16,6 +16,7 @@
 
 ### 알려진 이슈
 - `npm audit` 에서 `prisma`(CLI, devDependency) → `@prisma/config` → `deepmerge-ts` high 경고가 보고됨. 런타임(@prisma/client)이 아닌 CLI 전용 경로이며, 권장 수정(`--force`)은 prisma 다운그레이드라 적용하지 않음.
+- `concurrently`(개발 모드 전용)가 고정한 `shell-quote@1.9.0` 의 critical 경고(GHSA-pqg4-j6r4-53mv)는 `package.json` `overrides` 로 `^1.12.0` 강제. 배포판에는 포함되지 않는 개발 도구.
 
 ## 2. 도메인 모델 확장
 

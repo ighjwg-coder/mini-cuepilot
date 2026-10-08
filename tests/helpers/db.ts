@@ -8,7 +8,7 @@ import { TEMPLATE_DIR } from '../globalSetup';
 export function createTestDb() {
   const file = resolve(TEMPLATE_DIR, `${randomUUID()}.db`);
   copyFileSync(resolve(TEMPLATE_DIR, 'template.db'), file);
-  const prisma = new PrismaClient({ datasourceUrl: `file:${file}` });
+  const prisma = new PrismaClient({ datasourceUrl: `file:${file.replace(/\\/g, '/')}` });
   return {
     prisma,
     async cleanup() {
