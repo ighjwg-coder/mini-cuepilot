@@ -31,6 +31,18 @@
 
 ## 릴리스 하기
 
+방법은 두 가지이며 결과는 같습니다.
+
+### 방법 A — PR 머지만으로 (GitHub 웹에서 끝)
+
+1. 작업 브랜치에서 `package.json` 버전을 올리고(`npm version patch --no-git-tag-version` 또는 직접 수정) `CHANGELOG.md` 에 해당 버전 섹션을 작성
+2. PR 을 **main 에 머지**
+3. 워크플로가 `v<버전>` 태그가 아직 없으면 **태그 생성 + Release 게시**까지 자동 처리
+
+> v0.0.1 은 이 방법으로 게시됩니다 (PR #1 머지 시).
+
+### 방법 B — 로컬에서 버전 명령으로
+
 ```bash
 # 1) main 최신 상태에서 테스트
 git checkout main && git pull
@@ -46,7 +58,7 @@ npm run release:patch
 git push --follow-tags
 ```
 
-태그가 올라가면 GitHub Actions **"Windows 배포판"** 워크플로가 자동으로:
+태그(또는 main 머지)가 올라가면 GitHub Actions **"Windows 배포판"** 워크플로가 자동으로:
 
 1. Windows 서버에서 테스트 실행
 2. 배포 패키지 조립 (`scripts/package.mjs`) + 설치판 첫 실행 스모크 테스트
