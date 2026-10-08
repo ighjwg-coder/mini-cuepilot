@@ -23,7 +23,8 @@
     "package": "node scripts/package.mjs",
     "version": "tsx scripts/changelog.ts release && git add CHANGELOG.md",
     "release:patch": "npm version patch -m \"chore(release): v%s\"",
-    "release:minor": "npm version minor -m \"chore(release): v%s\""
+    "release:minor": "npm version minor -m \"chore(release): v%s\"",
+    "preversion": "tsx scripts/changelog.ts check && npm test"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

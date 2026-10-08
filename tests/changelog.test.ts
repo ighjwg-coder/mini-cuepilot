@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { releaseNotes, stampRelease } from '../scripts/changelog';
+import { releaseNotes, stampRelease, unreleasedBody } from '../scripts/changelog';
 
 const BASE = `# Changelog
 
@@ -26,6 +26,11 @@ describe('CHANGELOG 도구', () => {
   it('Unreleased 가 비어 있으면 릴리스 거부 (변경 기록 누락 방지)', () => {
     const out = stampRelease(BASE, '0.0.2', '2026-10-15');
     expect(() => stampRelease(out, '0.0.3', '2026-10-16')).toThrow('변경 내용이 없습니다');
+  });
+
+  it('unreleasedBody: preversion 검사용', () => {
+    expect(unreleasedBody(BASE)).toBe('### 추가\n- 새 기능 A');
+    expect(unreleasedBody(stampRelease(BASE, '0.0.2', 'd'))).toBe('');
   });
 
   it('이미 있는 버전 / 없는 버전', () => {
