@@ -1,4 +1,6 @@
-# Mini CuePilot
+# CamCue (캠큐)
+
+> v0.0.1 까지의 이름은 "Mini CuePilot" 이었습니다. 상용 제품 CuePilot 과의 혼동을 피하기 위해 이름을 바꿨습니다.
 
 교회 예배 라이브 중계용 **카메라 큐시트 진행 + ATEM 스위처 제어 + 카메라맨 모바일 CueScreen** 웹앱.
 
@@ -26,13 +28,13 @@
 
 | 파일 | 용도 |
 |---|---|
-| `MiniCuePilot-Setup-v0.0.x-win-x64.exe` | **설치판 (권장)** — 시작 메뉴·바탕화면 바로가기, 방화벽 자동 허용 |
-| `MiniCuePilot-portable-v0.0.x-win-x64.zip` | 포터블 — 압축 풀고 `MiniCuePilot.cmd` 더블클릭 |
+| `CamCue-Setup-v0.0.x-win-x64.exe` | **설치판 (권장)** — 시작 메뉴·바탕화면 바로가기, 방화벽 자동 허용 |
+| `CamCue-portable-v0.0.x-win-x64.zip` | 포터블 — 압축 풀고 `CamCue.cmd` 더블클릭 |
 
-1. 설치 후 **Mini CuePilot** 실행 → 서버 창이 열리고 브라우저가 자동으로 `http://localhost:3000` 을 엽니다.
+1. 설치 후 **CamCue** 실행 → 서버 창이 열리고 브라우저가 자동으로 `http://localhost:38080` 을 엽니다.
 2. 처음 실행 시 "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행** (코드 서명 미적용 무료 배포본).
-3. 설정 파일 `%LOCALAPPDATA%\MiniCuePilot\config.env` 를 메모장으로 열어 `ATEM_HOST` 등을 바꾸고 프로그램을 다시 실행합니다.
-4. 큐시트는 `%LOCALAPPDATA%\MiniCuePilot\cuepilot.db` 에 저장되며, 새 버전으로 업데이트하거나 제거해도 유지됩니다.
+3. 설정 파일 `%LOCALAPPDATA%\CamCue\config.env` 를 메모장으로 열어 `ATEM_HOST` 등을 바꾸고 프로그램을 다시 실행합니다.
+4. 큐시트는 `%LOCALAPPDATA%\CamCue\camcue.db` 에 저장되며, 새 버전으로 업데이트하거나 제거해도 유지됩니다.
 
 버전 규칙과 릴리스 절차는 [`docs/RELEASING.md`](docs/RELEASING.md), 변경 이력은 [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -66,13 +68,13 @@ npm run dev
 | http://localhost:5173/editor | 에디터 |
 | http://localhost:5173/cam/1 | CueScreen (CAM 1) |
 
-> 개발 모드는 Vite(5173)가 API/WS 를 서버(3000)로 프록시합니다.
+> 개발 모드는 Vite(5173)가 API/WS 를 서버(38080)로 프록시합니다.
 
 ### 운영 모드 (예배 당일 권장)
 
 ```bash
 npm run build      # 웹 빌드 → dist/web
-npm start          # http://<서버IP>:3000 하나로 전체 서비스
+npm start          # http://<서버IP>:38080 하나로 전체 서비스
 ```
 
 ### 테스트
@@ -85,7 +87,7 @@ npm run typecheck
 ### 배포 패키지 / 릴리스
 
 ```bash
-npm run package          # release/MiniCuePilot/ 조립 (실행 중인 OS 용)
+npm run package          # release/CamCue/ 조립 (실행 중인 OS 용)
 npm run release:patch    # 0.0.1 → 0.0.2 + CHANGELOG 정리 + 태그
 git push --follow-tags   # → GitHub Actions 가 Windows 설치 파일을 만들어 Releases 에 게시
 ```
@@ -95,7 +97,7 @@ git push --follow-tags   # → GitHub Actions 가 Windows 설치 파일을 만�
 | 변수 | 기본값 | 설명 |
 |---|---|---|
 | `DATABASE_URL` | `file:./dev.db` | SQLite 파일 (prisma/ 기준 상대경로) |
-| `PORT` | `3000` | 서버 포트 |
+| `PORT` | `38080` | 서버 포트 |
 | `HOST` | `0.0.0.0` | 바인드 주소 (폰 접속을 위해 0.0.0.0 유지) |
 | `ATEM_HOST` | `mock` | 비움=ATEM 미사용 / `mock`=가상 스위처 / `192.168.10.240[:9910]`=실제 장비 |
 | `ATEM_ME` | `1` | 제어할 M/E 버스 번호 |
@@ -157,7 +159,7 @@ git push --follow-tags   # → GitHub Actions 가 Windows 설치 파일을 만�
 ### 3-1. 네트워크 구성
 
 ```
-[ATEM 스위처] ──LAN── [스위치 허브] ──LAN── [CuePilot 서버 PC]
+[ATEM 스위처] ──LAN── [스위치 허브] ──LAN── [CamCue 서버 PC]
                             └── Wi-Fi AP ── 카메라맨 폰들
 ```
 
@@ -183,7 +185,7 @@ npm start
 ```
 
 - 디렉터 콘솔 상단 배지: `● ATEM 192.168.10.240  <모델명>` (초록 = 연결, 빨강 = 미연결)
-- 상태 API: `curl http://localhost:3000/api/atem`
+- 상태 API: `curl http://localhost:38080/api/atem`
 - **연결이 안 되거나 끊겨도 앱은 계속 동작**합니다. 큐 진행·CueScreen 은 정상, 탈리는 "엔진 추정" 으로 표시되며 라이브러리가 자동 재접속합니다. 재접속 시 현재 큐를 자동 재송출하지 않으니 필요하면 디렉터가 JUMP 로 다시 보내세요.
 - ATEM Software Control / 하드웨어 패널과 **동시 사용 가능**. 패널에서 직접 전환해도 탈리는 실제 PGM 을 따라갑니다.
 
@@ -203,7 +205,7 @@ ATEM_HOST=mock
 Bitfocus Companion 의 *Generic HTTP* 액션으로 GO 버튼을 만들 수 있습니다.
 
 ```bash
-curl -X POST http://192.168.10.10:3000/api/show/command \
+curl -X POST http://192.168.10.10:38080/api/show/command \
   -H 'content-type: application/json' -d '{"command":"GO"}'
 # command: GO | BACK | HOLD | RESET | JUMP(+ actIndex, cueIndex)
 ```
@@ -217,10 +219,10 @@ curl -X POST http://192.168.10.10:3000/api/show/command \
 1. 폰을 **서버 PC 와 같은 Wi-Fi** 에 연결.
 2. 서버 PC IP 확인 — 서버 시작 로그에 표시됩니다:
    ```
-   CueScreen : http://192.168.10.10:3000/cam/1
+   CueScreen : http://192.168.10.10:38080/cam/1
    ```
    (Windows `ipconfig` / macOS `ipconfig getifaddr en0` 로도 확인. 홈 화면 하단에도 표시)
-3. 폰 브라우저에서 `http://<서버IP>:3000/cam/<카메라번호>` 접속
+3. 폰 브라우저에서 `http://<서버IP>:38080/cam/<카메라번호>` 접속
    - 개발 모드(`npm run dev`)라면 포트 **5173**
 4. **"화면을 탭해서 시작"** 터치 → 전체화면 + 화면 꺼짐 방지 활성화.
 5. 카메라 마운트에는 **가로 모드** 권장. Safari/Chrome 메뉴의 "홈 화면에 추가" 로 앱처럼 사용 가능.
@@ -241,13 +243,13 @@ curl -X POST http://192.168.10.10:3000/api/show/command \
 
 | 증상 | 조치 |
 |---|---|
-| 폰에서 접속 안 됨 | 같은 Wi-Fi 인지, 게스트 Wi-Fi(단말 간 격리) 아닌지 확인. 서버 PC 방화벽에서 TCP 3000 허용 (아래) |
+| 폰에서 접속 안 됨 | 같은 Wi-Fi 인지, 게스트 Wi-Fi(단말 간 격리) 아닌지 확인. 서버 PC 방화벽에서 TCP 38080 허용 (아래) |
 | `● 재연결 중` | Wi-Fi 끊김. 자동 재접속되며 화면을 다시 켜면 즉시 재연결 |
 | 화면이 꺼짐 | 아래 4-4 참고 |
 
 Windows 방화벽 허용 (관리자 PowerShell):
 ```powershell
-netsh advfirewall firewall add rule name="Mini CuePilot" dir=in action=allow protocol=TCP localport=3000
+netsh advfirewall firewall add rule name="CamCue" dir=in action=allow protocol=TCP localport=38080
 ```
 
 ### 4-4. 화면 꺼짐 방지 (중요)
@@ -265,7 +267,7 @@ netsh advfirewall firewall add rule name="Mini CuePilot" dir=in action=allow pro
    TLS_CERT=./certs/cert.pem
    TLS_KEY=./certs/key.pem
    ```
-   `npm run build && npm start` → 폰에서 `https://192.168.10.10:3000/cam/1`.
+   `npm run build && npm start` → 폰에서 `https://192.168.10.10:38080/cam/1`.
    폰에 mkcert 루트 인증서(`mkcert -CAROOT` 폴더의 `rootCA.pem`)를 설치·신뢰해야 경고 없이 접속됩니다.
 
 CueScreen 하단에 `화면 유지 ON` / `화면 유지 ON(호환)` / `화면 유지 불가` 로 상태가 표시됩니다.
@@ -293,7 +295,7 @@ CueScreen 하단에 `화면 유지 ON` / `화면 유지 ON(호환)` / `화면 �
 
 ```json
 {
-  "format": "mini-cuepilot/service@1",
+  "format": "camcue/service@1",
   "service": {
     "title": "주일 2부 예배",
     "date": "2026-10-11",

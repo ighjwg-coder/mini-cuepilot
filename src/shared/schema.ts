@@ -52,11 +52,13 @@ export const serviceInputSchema = z.object({
 
 export type ServiceInput = z.infer<typeof serviceInputSchema>;
 
-export const EXPORT_FORMAT = 'mini-cuepilot/service@1';
+export const EXPORT_FORMAT = 'camcue/service@1';
+/** v0.0.1(Mini CuePilot) 에서 내보낸 파일도 가져올 수 있도록 허용 */
+export const LEGACY_EXPORT_FORMATS = ['mini-cuepilot/service@1'] as const;
 
 /** 내보내기 파일 형식. 가져오기는 이 래퍼 또는 서비스 객체 단독 둘 다 허용 */
 export const exportFileSchema = z.object({
-  format: z.literal(EXPORT_FORMAT),
+  format: z.enum([EXPORT_FORMAT, ...LEGACY_EXPORT_FORMATS]),
   exportedAt: z.string().optional(),
   service: serviceInputSchema,
 });

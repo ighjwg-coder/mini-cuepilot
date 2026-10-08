@@ -85,7 +85,7 @@ describe('REST API', () => {
     const res = await app.inject(`/api/services/${svc.id}/export`);
     expect(res.headers['content-disposition']).toContain('attachment');
     const file = res.json();
-    expect(file.format).toBe('mini-cuepilot/service@1');
+    expect(file.format).toBe('camcue/service@1');
     const imported = await app.inject({ method: 'POST', url: '/api/import', payload: file });
     expect(imported.statusCode).toBe(201);
     expect(imported.json().acts[4].cues).toHaveLength(6);

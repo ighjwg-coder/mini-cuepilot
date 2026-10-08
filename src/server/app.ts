@@ -56,7 +56,7 @@ export async function buildApp({ repo, runtime, webDir, logger = false, https }:
   app.get('/api/health', async () => ({ ok: true, version: APP_VERSION, wsClients: ws.clientCount() }));
   app.get('/api/atem', async () => runtime.snapshot().atem);
 
-  /** 폰 접속용 LAN 주소. 포트는 요청 Host 헤더 기준(개발 모드 Vite 5173 / 운영 3000 모두 대응) */
+  /** 폰 접속용 LAN 주소. 포트는 요청 Host 헤더 기준(개발 모드 Vite 5173 / 운영 38080 모두 대응) */
   app.get('/api/info', async (req) => {
     const port = (req.headers.host ?? '').split(':')[1] ?? '80';
     const lanUrls = Object.values(networkInterfaces())

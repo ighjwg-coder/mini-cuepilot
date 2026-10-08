@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-export const TEMPLATE_DIR = resolve('node_modules/.cache/mini-cuepilot-test');
+export const TEMPLATE_DIR = resolve('node_modules/.cache/camcue-test');
 
 export default function setup() {
   rmSync(TEMPLATE_DIR, { recursive: true, force: true });

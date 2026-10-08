@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 // 서버와 같은 .env 의 PORT 를 프록시 대상으로 사용
 if (existsSync('.env')) process.loadEnvFile('.env');
 
-const apiPort = Number(process.env.PORT ?? 3000);
+const apiPort = Number(process.env.PORT ?? 38080);
 
 export default defineConfig({
   root: 'web',

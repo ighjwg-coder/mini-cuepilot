@@ -62,38 +62,70 @@ jobs:
 
       - name: 스모크 테스트 (설치판 첫 실행 흐름)
         run: |
-          $env:CUEPILOT_DATA_DIR = Join-Path $env:RUNNER_TEMP 'cuepilot-data'
-          $env:CUEPILOT_OPEN_BROWSER = '0'
+          $env:CAMCUE_DATA_DIR = Join-Path $env:RUNNER_TEMP 'camcue-data'
+          $env:CAMCUE_OPEN_BROWSER = '0'
           $env:PORT = '3456'
-          $p = Start-Process -FilePath 'release\MiniCuePilot\node\node.exe' `
-            -ArgumentList 'release\MiniCuePilot\app\dist\server\index.mjs' `
+          $p = Start-Process -FilePath 'release\CamCue\node\node.exe' `
+            -ArgumentList 'release\CamCue\app\dist\server\index.mjs' `
             -RedirectStandardOutput smoke.out.log -RedirectStandardError smoke.err.log -PassThru
           try {
             $health = $null
             for ($i = 0; $i -lt 40 -and -not $health; $i++) {
               Start-Sleep -Seconds 1
-              try { $health = Invoke-RestMethod http://localhost:3456/api/health } catch {}
+              try { $health = Invoke-RestMethod http://127.0.0.1:3456/api/health } catch {}
             }
             if (-not $health) { throw '서버가 시작되지 않았습니다' }
             if ($health.version -ne '${{ steps.ver.outputs.version }}') { throw "버전 불일치: $($health.version)" }
             $services = @(Invoke-RestMethod http://localhost:3456/api/services)
             if ($services.Count -ne 1) { throw "샘플 예배 시드 실패 ($($services.Count))" }
             $page = Invoke-WebRequest http://localhost:3456/cam/1 -UseBasicParsing
-            if ($page.Content -notmatch 'Mini CuePilot') { throw '웹 UI 서빙 실패' }
+            if ($page.Content -notmatch 'CamCue') { throw '웹 UI 서빙 실패' }
             $go = Invoke-RestMethod -Method Post http://localhost:3456/api/show/command -ContentType 'application/json' -Body '{"command":"GO"}'
             if ($go.state.cueIndex -ne 0) { throw 'GO 실패' }
-            if (-not (Test-Path (Join-Path $env:CUEPILOT_DATA_DIR 'config.env'))) { throw 'config.env 미생성' }
+            if (-not (Test-Path (Join-Path $env:CAMCUE_DATA_DIR 'config.env'))) { throw 'config.env 미생성' }
             Write-Host "스모크 테스트 통과: v$($health.version)"
           } finally {
             Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
             Get-Content smoke.out.log, smoke.err.log -ErrorAction SilentlyContinue
           }
 
+      - name: 스모크 테스트 (기본 포트 막힘 → 자동 포트 변경)
+        # v0.0.1 장애(listen EACCES :3000) 회귀 테스트. 러너에서는 Hyper-V 예약(EACCES)을 그대로 만들 수 없어
+        # (netsh 관리자 제외는 bind 를 막지 않고, 배타적 점유 소켓은 EADDRINUSE 로 보고됨)
+        # 38080 을 점유한 상태에서 자동 전환·저장 흐름을 실제 Windows 에서 검증한다.
+        # EACCES 분류 자체는 tests/listen.test.ts 단위 테스트가 검증.
+        # 주의: Windows 는 localhost(::1) 연결 실패 시 약 2초 재시도하므로 127.0.0.1 로 직접 확인
+        run: |
+          $hold = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, 38080)
+          $hold.ExclusiveAddressUse = $true
+          $hold.Start()
+          $env:CAMCUE_DATA_DIR = Join-Path $env:RUNNER_TEMP 'camcue-data-blocked'
+          $env:CAMCUE_OPEN_BROWSER = '0'
+          Remove-Item Env:PORT -ErrorAction SilentlyContinue
+          $p = Start-Process -FilePath 'release\CamCue\node\node.exe' `
+            -ArgumentList 'release\CamCue\app\dist\server\index.mjs' `
+            -RedirectStandardOutput blocked.out.log -RedirectStandardError blocked.err.log -PassThru
+          try {
+            $health = $null
+            for ($i = 0; $i -lt 40 -and -not $health; $i++) {
+              Start-Sleep -Seconds 1
+              try { $health = Invoke-RestMethod http://127.0.0.1:38090/api/health -TimeoutSec 5 } catch {}
+            }
+            if (-not $health) { throw '38080 을 쓸 수 없는 상황에서 38090 으로 전환되지 않았습니다' }
+            $cfg = Get-Content (Join-Path $env:CAMCUE_DATA_DIR 'config.env') -Raw
+            if ($cfg -notmatch '(?m)^PORT=38090') { throw "config.env 에 바뀐 포트가 저장되지 않았습니다`n$cfg" }
+            Write-Host '포트 자동 변경 스모크 테스트 통과: 38080 막힘 → 38090, config.env 저장'
+          } finally {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            $hold.Stop()
+            Get-Content blocked.out.log, blocked.err.log -ErrorAction SilentlyContinue
+          }
+
       - name: 포터블 ZIP
         run: |
           $v = '${{ steps.ver.outputs.version }}'
           Push-Location release
-          7z a -tzip -mx=7 "MiniCuePilot-portable-v$v-win-x64.zip" MiniCuePilot | Out-Null
+          7z a -tzip -mx=7 "CamCue-portable-v$v-win-x64.zip" CamCue | Out-Null
           Pop-Location
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
@@ -101,7 +133,7 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
-          & $iscc /Q "/DAppVersion=${{ steps.ver.outputs.version }}" installer\MiniCuePilot.iss
+          & $iscc /Q "/DAppVersion=${{ steps.ver.outputs.version }}" installer\CamCue.iss
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: 릴리스 노트
@@ -114,12 +146,12 @@ jobs:
 
           | 파일 | 용도 |
           |---|---|
-          | ``MiniCuePilot-Setup-v$v-win-x64.exe`` | **설치판 (권장)** — 시작 메뉴·바탕화면 바로가기, 방화벽 자동 허용 |
-          | ``MiniCuePilot-portable-v$v-win-x64.zip`` | 포터블 — 압축 풀고 ``MiniCuePilot.cmd`` 실행 (관리자 권한 불필요) |
+          | ``CamCue-Setup-v$v-win-x64.exe`` | **설치판 (권장)** — 시작 메뉴·바탕화면 바로가기, 방화벽 자동 허용 |
+          | ``CamCue-portable-v$v-win-x64.zip`` | 포터블 — 압축 풀고 ``CamCue.cmd`` 실행 (관리자 권한 불필요) |
 
           - Windows 10/11 64bit. Node.js 설치 불필요 (내장)
           - 처음 실행 시 "Windows의 PC 보호" 창 → **추가 정보 → 실행** (코드 서명 미적용)
-          - 큐시트·설정은 ``%LOCALAPPDATA%\MiniCuePilot`` 에 보관되어 업데이트해도 유지됩니다
+          - 큐시트·설정은 ``%LOCALAPPDATA%\CamCue`` 에 보관되어 업데이트해도 유지됩니다
 
           ## 변경 사항
 
@@ -128,7 +160,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MiniCuePilot-v${{ steps.ver.outputs.version }}-windows
+          name: CamCue-v${{ steps.ver.outputs.version }}-windows
           path: |
             release/*.zip
             release/*.exe
@@ -141,7 +173,7 @@ jobs:
           # main push 에서는 이 커밋에 태그를 새로 만든다
           tag_name: v${{ steps.ver.outputs.version }}
           target_commitish: ${{ github.sha }}
-          name: Mini CuePilot v${{ steps.ver.outputs.version }}
+          name: CamCue v${{ steps.ver.outputs.version }}
           body_path: release/NOTES.md
           prerelease: ${{ steps.ver.outputs.prerelease == 'true' }}
           files: |

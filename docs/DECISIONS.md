@@ -9,7 +9,7 @@
 | 저장소 형태 | 단일 `package.json` (워크스페이스 미사용) | 서버/웹/공용 코드가 같은 TS 설정을 공유. 설치·실행 명령 단순화 |
 | 디렉터리 | `src/shared`(도메인·엔진), `src/server`, `web`(Vite root), `prisma`, `tests` | 엔진은 서버와 브라우저 양쪽에서 import (카운트다운 계산 재사용) |
 | 서버 실행 | `tsx` 로 TS 직접 실행 (별도 빌드 없음) | MVP 단계에서 빌드 파이프라인 최소화 |
-| 웹 배포 | `vite build` → `dist/web` 를 Fastify가 정적 서빙 | 운영 시 포트 1개(3000)로 폰 접속 단순화 |
+| 웹 배포 | `vite build` → `dist/web` 를 Fastify가 정적 서빙 | 운영 시 포트 1개(38080)로 폰 접속 단순화 |
 | Prisma 버전 | 6.x (`prisma-client-js`) | 7.x는 driver adapter/`prisma.config.ts` 필수로 구성이 복잡. 6.x가 SQLite 단일 파일 운용에 가장 단순 |
 | TypeScript | 5.x | 7.x(네이티브 포트)는 생태계 호환성 검증 부족 |
 | 환경 변수 | Node 내장 `process.loadEnvFile()` 사용, dotenv 미사용 | 의존성 최소화 |
@@ -86,7 +86,7 @@
 | 시간 동기화 | `ping`/`pong` 으로 서버 시각 오프셋 계산 → 폰 시계가 틀려도 카운트다운 정확 |
 | 끊김 감지 | 15초 주기 WS ping/pong, 응답 없으면 정리 (폰 잠금/와이파이 전환 대비). 클라이언트는 자동 재접속 |
 | 에디터 저장 | 전체 문서 PUT. 클라이언트가 Act/Cue id 를 유지해 보내면 upsert, 빠진 항목 삭제. 다른 예배 소유 id 는 409 |
-| JSON 내보내기 | `{ format: "mini-cuepilot/service@1", exportedAt, service }`, id 제거(다른 PC로 이식 시 충돌 방지). 가져오기는 래퍼 없는 서비스 객체도 허용 |
+| JSON 내보내기 | `{ format: "camcue/service@1", exportedAt, service }`, id 제거(다른 PC로 이식 시 충돌 방지). 가져오기는 래퍼 없는 서비스 객체도 허용 |
 | 테스트 DB | Vitest globalSetup 에서 `prisma db push` 로 템플릿 SQLite 생성 → 테스트 파일마다 복사해 독립 사용 |
 
 ## 5. 디렉터 콘솔 (`/director`)
@@ -158,6 +158,17 @@
 - GitHub Actions CI(`.github/workflows/ci.yml`): `npm ci → typecheck → test → build`.
 - Node 20.12+ 요구 (`process.loadEnvFile`).
 
+## 11. 이름 변경 · 포트 (0.0.2~)
+
+| 항목 | 결정 | 이유 |
+|---|---|---|
+| 이름 | Mini CuePilot → **CamCue(캠큐)** | "CuePilot" 은 같은 분야(생중계 카메라 큐) 상용 제품(CuePilot ApS) 이름. 공개 배포 시 상표·혼동 시비 소지 제거. "CamCue" 동명 방송 소프트웨어 검색 결과 없음 |
+| 업그레이드 | 설치 프로그램 AppId 유지 + 예전 폴더·바로가기·방화벽 규칙 정리, 데이터는 `MiniCuePilot\cuepilot.db` → `CamCue\camcue.db` 복사 | 기존 사용자 큐시트 보존. 예전 데이터 폴더는 삭제하지 않음(롤백 대비) |
+| 기본 포트 | **38080** | v0.0.1 기본 3000 이 Hyper-V/WSL/Docker 의 예약 포트 대역(`netsh int ipv4 show excludedportrange`)과 겹쳐 `EACCES` 로 실행 실패한 실제 사례. 사용자 요청으로 5자리, 동적 포트 대역(49152~) 밖 |
+| 포트 자동 변경 | EACCES/EADDRINUSE 시 38080 → 38090 → 28080 → 18080 → 48080 → OS 자동(0). 바뀐 포트는 `config.env` 에 저장 | 폰 접속 주소가 실행마다 바뀌지 않게 |
+| 중복 실행 | 설정 포트에 CamCue 가 이미 응답하면 새로 띄우지 않고 기존 화면을 엶 | 바로가기 두 번 클릭 시 포트만 바뀐 두 번째 서버가 뜨는 혼란 방지 |
+| 검증 | EACCES/EADDRINUSE 분류·후보 순서·저장은 단위 테스트, 실제 Windows 에서는 38080 을 점유한 상태로 자동 전환·`config.env` 저장을 CI 스모크 테스트 | GitHub Windows 러너에서는 Hyper-V 예약과 같은 EACCES 를 만들 수 없음을 확인(`netsh` 관리자 제외는 bind 를 막지 않고, 배타적 점유 소켓은 EADDRINUSE 로 보고됨). 두 오류는 같은 전환 경로를 탐 |
+
 ## 10. 버전 관리 · Windows 배포 (0.0.1~)
 
 | 항목 | 결정 | 이유 |
@@ -168,7 +179,7 @@
 | 배포 형식 | Inno Setup 설치판 + 포터블 ZIP | 단일 exe(Node SEA/pkg)는 Prisma 네이티브 엔진·atem-connection 워커 스레드 때문에 불안정. 런타임 동봉 폴더 방식이 가장 확실 |
 | 빌드 위치 | GitHub Actions `windows-latest` | Windows 용 Prisma 엔진을 정식 경로로 생성. 태그 push 시 Release 자동 게시, PR 에서는 아티팩트만 |
 | 런타임 | 빌드에 쓴 Node 22 `node.exe` 동봉 | PC 에 Node 설치 불필요 |
-| 데이터 위치 | `%LOCALAPPDATA%\MiniCuePilot` (`config.env`, `cuepilot.db`) | Program Files 는 쓰기 불가, 업데이트/제거 시 큐시트 보존 |
+| 데이터 위치 | `%LOCALAPPDATA%\CamCue` (`config.env`, `camcue.db`) | Program Files 는 쓰기 불가, 업데이트/제거 시 큐시트 보존 |
 | 첫 실행 | 빌드 시 만든 빈 `template.db` 복사 + 샘플 예배 시드 | 사용자 PC 에서 prisma CLI(스키마 엔진) 실행 불필요 |
 | 방화벽 | 설치 옵션으로 `node.exe` 프로그램 기준 인바운드 허용, 모든 프로필 | 교회 Wi-Fi 가 '공용 네트워크'로 분류되는 경우가 많음. 제거 시 규칙 삭제 |
 | 용량 | 런타임 의존성만 + Prisma 미사용 DB 엔진(WASM)·소스맵 제거 | 386MB → 약 200MB(압축 시 약 60MB) |
