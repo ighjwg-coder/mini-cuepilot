@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-10-08
+
 ### 변경
 - **이름 변경: Mini CuePilot → CamCue(캠큐)** — 상용 제품 CuePilot 과의 혼동 방지
   - 설치 폴더 `Program Files\CamCue`, 데이터 폴더 `%LOCALAPPDATA%\CamCue`, 실행 파일 `CamCue.cmd`
