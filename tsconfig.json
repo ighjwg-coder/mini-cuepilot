@@ -18,5 +18,5 @@
     "baseUrl": ".",
     "paths": { "@shared/*": ["src/shared/*"] }
   },
-  "include": ["src", "web/src", "tests", "prisma/seed.ts", "vite.config.ts", "vitest.config.ts"]
+  "include": ["src", "web/src", "tests", "scripts/**/*.ts", "prisma/seed.ts", "vite.config.ts", "vitest.config.ts"]
 }

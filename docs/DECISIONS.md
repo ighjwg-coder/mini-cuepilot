@@ -156,3 +156,20 @@
 - 기본 `ATEM_HOST=mock` — 처음 실행해도 탈리·PVW 흐름을 바로 확인 가능. 실제 장비는 IP 로 교체.
 - GitHub Actions CI(`.github/workflows/ci.yml`): `npm ci → typecheck → test → build`.
 - Node 20.12+ 요구 (`process.loadEnvFile`).
+
+## 10. 버전 관리 · Windows 배포 (0.0.1~)
+
+| 항목 | 결정 | 이유 |
+|---|---|---|
+| 버전 체계 | SemVer, 정식 전 `0.0.x` | 사용자 요청. `0.` 버전은 Release 에 Pre-release 표시 |
+| 버전 기준 | `package.json` 단일 소스 → `src/shared/version.ts` 로 서버·웹에 주입 | 표시 버전과 배포 파일 버전 불일치 방지 |
+| 변경 이력 | `CHANGELOG.md` (Keep a Changelog). `npm version` 훅이 `[Unreleased]` → 버전 섹션 이동, 비어 있으면 중단 | 릴리스 노트 자동화 + 기록 누락 방지 |
+| 배포 형식 | Inno Setup 설치판 + 포터블 ZIP | 단일 exe(Node SEA/pkg)는 Prisma 네이티브 엔진·atem-connection 워커 스레드 때문에 불안정. 런타임 동봉 폴더 방식이 가장 확실 |
+| 빌드 위치 | GitHub Actions `windows-latest` | Windows 용 Prisma 엔진을 정식 경로로 생성. 태그 push 시 Release 자동 게시, PR 에서는 아티팩트만 |
+| 런타임 | 빌드에 쓴 Node 22 `node.exe` 동봉 | PC 에 Node 설치 불필요 |
+| 데이터 위치 | `%LOCALAPPDATA%\MiniCuePilot` (`config.env`, `cuepilot.db`) | Program Files 는 쓰기 불가, 업데이트/제거 시 큐시트 보존 |
+| 첫 실행 | 빌드 시 만든 빈 `template.db` 복사 + 샘플 예배 시드 | 사용자 PC 에서 prisma CLI(스키마 엔진) 실행 불필요 |
+| 방화벽 | 설치 옵션으로 `node.exe` 프로그램 기준 인바운드 허용, 모든 프로필 | 교회 Wi-Fi 가 '공용 네트워크'로 분류되는 경우가 많음. 제거 시 규칙 삭제 |
+| 용량 | 런타임 의존성만 + Prisma 미사용 DB 엔진(WASM)·소스맵 제거 | 386MB → 약 200MB(압축 시 약 60MB) |
+| 코드 서명 | 미적용 | 인증서 비용. SmartScreen 경고 안내로 대체 |
+| 실행기 | `.cmd` + 서버 콘솔 창 | 창이 떠 있어야 "서버 동작 중"이 명확하고, 닫으면 종료되는 직관적 모델 |

@@ -20,7 +20,25 @@
 
 ---
 
-## 1. 로컬 실행
+## 0. Windows 에 바로 설치 (개발 환경 불필요)
+
+[**Releases**](https://github.com/ighjwg-coder/mini-cuepilot/releases) 에서 최신 버전을 받습니다.
+
+| 파일 | 용도 |
+|---|---|
+| `MiniCuePilot-Setup-v0.0.x-win-x64.exe` | **설치판 (권장)** — 시작 메뉴·바탕화면 바로가기, 방화벽 자동 허용 |
+| `MiniCuePilot-portable-v0.0.x-win-x64.zip` | 포터블 — 압축 풀고 `MiniCuePilot.cmd` 더블클릭 |
+
+1. 설치 후 **Mini CuePilot** 실행 → 서버 창이 열리고 브라우저가 자동으로 `http://localhost:3000` 을 엽니다.
+2. 처음 실행 시 "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행** (코드 서명 미적용 무료 배포본).
+3. 설정 파일 `%LOCALAPPDATA%\MiniCuePilot\config.env` 를 메모장으로 열어 `ATEM_HOST` 등을 바꾸고 프로그램을 다시 실행합니다.
+4. 큐시트는 `%LOCALAPPDATA%\MiniCuePilot\cuepilot.db` 에 저장되며, 새 버전으로 업데이트하거나 제거해도 유지됩니다.
+
+버전 규칙과 릴리스 절차는 [`docs/RELEASING.md`](docs/RELEASING.md), 변경 이력은 [`CHANGELOG.md`](CHANGELOG.md).
+
+---
+
+## 1. 로컬 실행 (소스에서)
 
 ### 요구 사항
 - Node.js **20.12 이상** (22 LTS 권장)
@@ -62,6 +80,14 @@ npm start          # http://<서버IP>:3000 하나로 전체 서비스
 ```bash
 npm test           # Vitest 전체 (엔진·서버·WS·ATEM mock 통합)
 npm run typecheck
+```
+
+### 배포 패키지 / 릴리스
+
+```bash
+npm run package          # release/MiniCuePilot/ 조립 (실행 중인 OS 용)
+npm run release:patch    # 0.0.1 → 0.0.2 + CHANGELOG 정리 + 태그
+git push --follow-tags   # → GitHub Actions 가 Windows 설치 파일을 만들어 Releases 에 게시
 ```
 
 ### 환경 변수 (`.env`)
