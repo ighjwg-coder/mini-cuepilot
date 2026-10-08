@@ -167,7 +167,7 @@
 | 기본 포트 | **38080** | v0.0.1 기본 3000 이 Hyper-V/WSL/Docker 의 예약 포트 대역(`netsh int ipv4 show excludedportrange`)과 겹쳐 `EACCES` 로 실행 실패한 실제 사례. 사용자 요청으로 5자리, 동적 포트 대역(49152~) 밖 |
 | 포트 자동 변경 | EACCES/EADDRINUSE 시 38080 → 38090 → 28080 → 18080 → 48080 → OS 자동(0). 바뀐 포트는 `config.env` 에 저장 | 폰 접속 주소가 실행마다 바뀌지 않게 |
 | 중복 실행 | 설정 포트에 CamCue 가 이미 응답하면 새로 띄우지 않고 기존 화면을 엶 | 바로가기 두 번 클릭 시 포트만 바뀐 두 번째 서버가 뜨는 혼란 방지 |
-| 검증 | Windows CI 에서 `netsh int ipv4 add excludedportrange` 로 38080 을 실제 예약해 EACCES 재현 후 자동 변경 확인 | 실제 장애 상황 그대로 회귀 테스트 |
+| 검증 | Windows CI 에서 38080 을 배타적 점유(`ExclusiveAddressUse`) 소켓으로 잡아 **EACCES 재현** 후 38090 전환·`config.env` 저장 확인 | `netsh ... excludedportrange`(관리자 제외)는 직접 bind 를 막지 않아 재현 불가로 확인됨(CI 로그). Hyper-V 예약과 같은 EACCES 오류 경로를 검증 |
 
 ## 10. 버전 관리 · Windows 배포 (0.0.1~)
 

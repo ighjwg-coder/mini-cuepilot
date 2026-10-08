@@ -66,7 +66,7 @@ try {
   port = result.port;
   if (result.failed.length > 0) {
     console.warn(
-      `\n  [알림] 포트 ${result.failed.map((f) => `${f.port}(${f.code === 'EACCES' ? 'Windows 예약' : '사용 중'})`).join(', ')} 을(를) 쓸 수 없어 ${port} 번으로 실행합니다.`,
+      `\n  [알림] 포트 ${result.failed.map((f) => `${f.port}(${f.code === 'EACCES' ? 'Windows 가 막음' : '다른 프로그램 사용 중'})`).join(', ')} 을(를) 쓸 수 없어 ${port} 번으로 실행합니다.`,
     );
     if (dataDir) {
       saveConfigPort(dataDir.configPath, port);
