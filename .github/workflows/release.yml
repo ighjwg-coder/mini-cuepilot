@@ -72,7 +72,7 @@ jobs:
             $health = $null
             for ($i = 0; $i -lt 40 -and -not $health; $i++) {
               Start-Sleep -Seconds 1
-              try { $health = Invoke-RestMethod http://localhost:3456/api/health } catch {}
+              try { $health = Invoke-RestMethod http://127.0.0.1:3456/api/health } catch {}
             }
             if (-not $health) { throw '서버가 시작되지 않았습니다' }
             if ($health.version -ne '${{ steps.ver.outputs.version }}') { throw "버전 불일치: $($health.version)" }
@@ -89,36 +89,36 @@ jobs:
             Get-Content smoke.out.log, smoke.err.log -ErrorAction SilentlyContinue
           }
 
-      - name: 스모크 테스트 (포트 EACCES → 자동 포트 변경)
-        # v0.0.1 에서 실제로 발생한 문제(listen EACCES) 재현.
-        # Hyper-V 예약 대역은 러너에서 그대로 만들 수 없어(netsh 관리자 제외는 직접 bind 를 막지 않음),
-        # 같은 EACCES(WSAEACCES)를 내는 '배타적 점유(ExclusiveAddressUse)' 소켓으로 38080 을 잡아 둔다.
+      - name: 스모크 테스트 (기본 포트 막힘 → 자동 포트 변경)
+        # v0.0.1 장애(listen EACCES :3000) 회귀 테스트. 러너에서는 Hyper-V 예약(EACCES)을 그대로 만들 수 없어
+        # (netsh 관리자 제외는 bind 를 막지 않고, 배타적 점유 소켓은 EADDRINUSE 로 보고됨)
+        # 38080 을 점유한 상태에서 자동 전환·저장 흐름을 실제 Windows 에서 검증한다.
+        # EACCES 분류 자체는 tests/listen.test.ts 단위 테스트가 검증.
+        # 주의: Windows 는 localhost(::1) 연결 실패 시 약 2초 재시도하므로 127.0.0.1 로 직접 확인
         run: |
           $hold = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, 38080)
           $hold.ExclusiveAddressUse = $true
           $hold.Start()
-          $env:CAMCUE_DATA_DIR = Join-Path $env:RUNNER_TEMP 'camcue-data-eacces'
+          $env:CAMCUE_DATA_DIR = Join-Path $env:RUNNER_TEMP 'camcue-data-blocked'
           $env:CAMCUE_OPEN_BROWSER = '0'
           Remove-Item Env:PORT -ErrorAction SilentlyContinue
           $p = Start-Process -FilePath 'release\CamCue\node\node.exe' `
             -ArgumentList 'release\CamCue\app\dist\server\index.mjs' `
-            -RedirectStandardOutput eacces.out.log -RedirectStandardError eacces.err.log -PassThru
+            -RedirectStandardOutput blocked.out.log -RedirectStandardError blocked.err.log -PassThru
           try {
             $health = $null
-            for ($i = 0; $i -lt 30 -and -not $health; $i++) {
+            for ($i = 0; $i -lt 40 -and -not $health; $i++) {
               Start-Sleep -Seconds 1
-              try { $health = Invoke-RestMethod http://localhost:38090/api/health -TimeoutSec 2 } catch {}
+              try { $health = Invoke-RestMethod http://127.0.0.1:38090/api/health -TimeoutSec 5 } catch {}
             }
             if (-not $health) { throw '38080 을 쓸 수 없는 상황에서 38090 으로 전환되지 않았습니다' }
-            $out = (Get-Content eacces.out.log -Raw) + (Get-Content eacces.err.log -Raw)
-            if ($out -notmatch '38080\(Windows 가 막음\)') { throw "EACCES 로 인식되지 않았습니다`n$out" }
             $cfg = Get-Content (Join-Path $env:CAMCUE_DATA_DIR 'config.env') -Raw
             if ($cfg -notmatch '(?m)^PORT=38090') { throw "config.env 에 바뀐 포트가 저장되지 않았습니다`n$cfg" }
-            Write-Host 'EACCES 스모크 테스트 통과: 38080(EACCES) → 38090, config.env 저장'
+            Write-Host '포트 자동 변경 스모크 테스트 통과: 38080 막힘 → 38090, config.env 저장'
           } finally {
             Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
             $hold.Stop()
-            Get-Content eacces.out.log, eacces.err.log -ErrorAction SilentlyContinue
+            Get-Content blocked.out.log, blocked.err.log -ErrorAction SilentlyContinue
           }
 
       - name: 포터블 ZIP
