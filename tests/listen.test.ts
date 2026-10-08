@@ -43,7 +43,8 @@ describe('listenWithFallback (포트 자동 선택)', () => {
   });
 
   it('실제 소켓: 점유된 포트를 피해 바인딩', async () => {
-    const blocker = net.createServer().listen(0);
+    // 앱과 같은 주소(0.0.0.0)로 점유해야 함. Windows 는 [::] 와 0.0.0.0 이 같은 포트를 동시에 바인딩할 수 있음
+    const blocker = net.createServer().listen(0, '0.0.0.0');
     await new Promise((r) => blocker.once('listening', r));
     const busy = (blocker.address() as net.AddressInfo).port;
     const server = net.createServer();
