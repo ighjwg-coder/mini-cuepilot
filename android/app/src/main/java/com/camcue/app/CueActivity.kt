@@ -90,7 +90,8 @@ class CueActivity : Activity() {
         setContentView(FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             addView(web, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-            addView(overlay, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+            // FrameLayout 자체의 overlay 속성과 이름이 겹치므로 명시
+            addView(this@CueActivity.overlay, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
         })
         web.loadUrl(url())
     }
