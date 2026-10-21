@@ -62,7 +62,7 @@
 - TIMECODE 는 HOLD 중에도 수신값만 기록하고, 해제 후 다음 타임코드 수신 시 현재 위치로 따라잡음(외부 타임코드는 멈추지 않는 것이 실제 동작).
 
 ### 탈리(ON AIR) 판단
-- `cut`/`auto` 큐만 PGM 카메라를 바꾼 것으로 간주(`programCamera`). `macro`/`dsk` 큐는 PGM 유지.
+- **모든 큐는 자기 카메라를 송출로** 만든다(`programCamera`). `macro`/`dsk` 큐는 송출 카메라가 다르면 먼저 CUT 한 뒤 매크로·DSK 실행 (0.0.5~. 이전에는 PGM 유지 → "지금 내 샷" 인데 탈리가 안 들어오는 혼란이 있었음)
 - 서버는 ATEM 이 연결돼 있으면 **실제 ATEM PGM 입력**을, 아니면 엔진의 `programCamera` 를 탈리로 사용.
 
 ### 카운트다운 (`upcoming`, `cameraView`)

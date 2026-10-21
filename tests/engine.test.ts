@@ -316,13 +316,13 @@ describe('TIMECODE 모드', () => {
     expect(s.timecodeSec).toBeNull();
   });
 
-  it('dsk 액션은 PGM 카메라를 바꾸지 않음', () => {
+  it('dsk 큐도 자기 카메라를 송출로 (탈리 = 큐 카메라)', () => {
     const s = run(svc, [
       { type: 'JUMP', now: 0, actIndex: 3, cueIndex: 1 },
       { type: 'TIMECODE', now: 1, seconds: 46 },
     ]).state;
     expect(cueId(svc, s)).toBe('s-3');
-    expect(s.programCamera).toBe(2);
+    expect(s.programCamera).toBe(3);
   });
 });
 

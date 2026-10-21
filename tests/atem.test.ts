@@ -134,14 +134,23 @@ describe('ShowRuntime + Mock ATEM 통합', () => {
     expect(atem.status().programInput).toBe(2);
   });
 
-  it('TIMECODE 진행 중 dsk 액션은 PGM 유지', async () => {
+  it('dsk 큐: 다른 카메라면 먼저 컷한 뒤 DSK, 이미 송출 중이면 DSK 만', async () => {
     runtime.command({ command: 'JUMP', actIndex: 3, cueIndex: 1 });
     await runtime.idle();
     expect(atem.status().programInput).toBe(2);
-    runtime.command({ command: 'JUMP', actIndex: 3, cueIndex: 2 });
+    atem.log.length = 0;
+    runtime.command({ command: 'JUMP', actIndex: 3, cueIndex: 2 }); // CAM 3, dsk:1:on
     await runtime.idle();
     expect(atem.dskOnAir[0]).toBe(true);
-    expect(atem.status().programInput).toBe(2);
+    expect(atem.status().programInput).toBe(3);
+    expect(atem.log.slice(0, 3)).toEqual([{ op: 'setPreview', input: 3 }, { op: 'cut' }, { op: 'dsk', keyer: 0, onAir: true }]);
+    expect(runtime.tally()).toMatchObject({ program: 3, source: 'atem' });
+
+    // 같은 카메라의 dsk 는 컷 없이 DSK 만
+    atem.log.length = 0;
+    const { executeAtemAction } = await import('../src/server/atem/types');
+    await executeAtemAction(atem, 3, { kind: 'dsk', keyer: 1, onAir: false });
+    expect(atem.log).toEqual([{ op: 'dsk', keyer: 0, onAir: false }]);
   });
 
   it('ATEM 연결이 끊겨도 큐 진행은 계속되고 탈리는 엔진 추정으로 전환', async () => {

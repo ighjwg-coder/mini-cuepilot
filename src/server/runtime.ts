@@ -173,7 +173,8 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
       if (e.type === 'TIMECODE_STOP') this.opts.timecode.stop();
       else if (e.type === 'TIMECODE_START') this.opts.timecode.start();
       else {
-        switched = e.action.kind === 'cut' ? true : e.action.kind === 'auto' ? false : switched;
+        // AUTO 는 트랜지션 중 PVW 를 바꾸면 안 되므로 제외. macro·dsk 도 필요 시 컷하므로 컷과 같이 취급
+        switched = e.action.kind !== 'auto';
         this.enqueueAtem(`큐 ${e.cueId} (${e.action.kind}, CAM ${e.camera})`, () =>
           executeAtemAction(this.opts.atem, e.camera, e.action),
         );
