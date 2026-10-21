@@ -1,4 +1,5 @@
-/* CueScreen: 항상 다크, 폰 세로/가로 모두 큰 글씨 (vmin 기준) */
+/* CueScreen: 항상 다크, 폰 세로/가로 모두 큰 글씨 (vmin 기준)
+   상태별 색: ON AIR 빨강 / 다음 차례 노랑 → (10초 전부터) 빨강으로 / 대기 회색 */
 .cs {
   position: fixed;
   inset: 0;
@@ -6,12 +7,15 @@
   color: #fff;
   display: flex;
   flex-direction: column;
+  gap: 2vmin;
   padding: max(3vmin, env(safe-area-inset-top)) max(4vmin, env(safe-area-inset-right)) max(3vmin, env(safe-area-inset-bottom))
     max(4vmin, env(safe-area-inset-left));
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
+  --urgent: #fff;
+  --shake: 0.5vmin;
 }
 
 .cs-invalid {
@@ -27,111 +31,232 @@
   inset: 0;
   pointer-events: none;
   border: 2.2vmin solid transparent;
-  transition: border-color 0.1s;
+  transition: border-color 0.15s;
+  z-index: 3;
+}
+.cs-onair {
+  background: #1f0000;
 }
 .cs-onair .cs-tally {
   border-color: #ff1a1a;
-  box-shadow: inset 0 0 6vmin rgba(255, 0, 0, 0.45);
+  box-shadow: inset 0 0 8vmin rgba(255, 0, 0, 0.5);
 }
-.cs-onair {
-  background: #1a0000;
-}
-.cs-preview .cs-tally {
+.cs-pvw .cs-tally {
   border-color: #16a34a;
 }
+.cs-next .cs-tally {
+  border-color: var(--urgent);
+  opacity: 0.85;
+}
 
+/* 머리줄 */
 .cs-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 3vmin;
 }
 .cs-cam {
   font-weight: 900;
-  font-size: 9vmin;
+  font-size: 10vmin;
   color: var(--cam);
   line-height: 1;
 }
-.cs-status {
-  font-weight: 900;
-  font-size: 6vmin;
-  padding: 0.5vmin 3vmin;
-  border-radius: 1.5vmin;
-  letter-spacing: 0.05em;
-}
-.cs-status.onair {
-  background: #ff1a1a;
-  color: #fff;
-  animation: cs-blink 1s steps(2, start) infinite;
-}
-.cs-status.preview {
+.cs-pvw-tag {
   background: #16a34a;
   color: #000;
+  font-weight: 900;
+  font-size: 4.5vmin;
+  padding: 0.3vmin 2vmin;
+  border-radius: 1vmin;
 }
-.cs-status.standby {
+.cs-conn {
+  font-size: 3.5vmin;
+  font-weight: 700;
+}
+.cs-conn.ok {
+  color: #22c55e;
+}
+.cs-conn.bad {
+  color: #ef4444;
+}
+.cs-hold {
+  background: #f59e0b;
+  color: #000;
+  font-weight: 900;
+  font-size: 4.5vmin;
+  padding: 0.3vmin 2vmin;
+  border-radius: 1vmin;
+}
+
+/* ① 상태 띠 */
+.cs-band {
+  display: flex;
+  flex-direction: column;
+  gap: 1vmin;
+  padding: 3vmin 4vmin;
+  border-radius: 2.5vmin;
+  background: #111827;
+  border: 0.6vmin solid #374151;
+  color: #9ca3af;
+}
+.cs-band-title {
+  font-size: 5.5vmin;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+.cs-band-time {
+  font-size: 20vmin;
+  font-weight: 900;
+  line-height: 0.95;
+  white-space: nowrap;
+  text-align: right;
+}
+.cs-band-time > span:not(.cs-mono) {
+  font-size: 7vmin;
+}
+.cs-band-sub {
+  margin-top: -1vmin;
+  font-size: 3.3vmin;
   color: #6b7280;
-  border: 0.4vmin solid #374151;
+  text-align: right;
+}
+
+.cs-onair .cs-band {
+  background: #e11d1d;
+  border-color: #ff4d4d;
+  color: #fff;
+  animation: cs-blink 1.2s steps(2, start) infinite;
+}
+.cs-next .cs-band,
+.cs-standby .cs-band {
+  color: var(--urgent);
+  border-color: var(--urgent);
+}
+.cs-next .cs-band {
+  background: #1c1700; /* color-mix 미지원 구형 WebView */
+  background: color-mix(in srgb, var(--urgent) 16%, #000);
+}
+.cs-standby .cs-band {
+  background: #0b0b0b;
+}
+.cs-standby:not(.cs-next) .cs-band-title {
+  color: #6b7280;
 }
 @keyframes cs-blink {
   50% {
-    opacity: 0.75;
+    filter: brightness(0.85);
   }
 }
 
+/* ② 내 샷 */
 .cs-main {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   min-height: 0;
+  padding-top: 2vmin;
 }
 .cs-label {
   font-size: 4vmin;
   color: #9ca3af;
-  font-weight: 600;
+  font-weight: 700;
 }
 .cs-shot {
-  font-size: 30vmin;
+  font-size: 26vmin;
   font-weight: 900;
   line-height: 0.95;
   letter-spacing: -0.02em;
 }
 .cs-shot-ko {
-  font-size: 5vmin;
-  font-weight: 600;
+  font-size: 5.5vmin;
+  font-weight: 700;
   color: #9ca3af;
   margin-left: 3vmin;
   letter-spacing: 0;
 }
+.cs-onair .cs-shot {
+  color: #fff;
+}
+
+/* ③ 메모 카드 */
 .cs-note {
-  font-size: 7vmin;
-  font-weight: 700;
-  line-height: 1.2;
-  margin-top: 1.5vmin;
-  word-break: keep-all;
-}
-.cs-countdown {
   margin-top: 3vmin;
-  font-size: 8vmin;
+  padding: 3vmin 4vmin;
+  border-radius: 2.5vmin;
+  background: #111;
+  border-left: 1.4vmin solid #4b5563;
+  font-size: 8.5vmin;
   font-weight: 800;
+  line-height: 1.25;
+  word-break: keep-all;
+  color: #f3f4f6;
 }
-.cs-countdown small {
-  font-size: 3.5vmin;
-  color: #9ca3af;
-  font-weight: 500;
+.cs-next .cs-note,
+.cs-standby .cs-note {
+  color: var(--urgent);
+  border-left-color: var(--urgent);
 }
-.cs-countdown.soon {
-  color: #fbbf24;
+.cs-note.important {
+  background: #3a2c00;
+  border: 0.5vmin solid #facc15;
+  border-left-width: 1.4vmin;
+  color: #fde047;
 }
+.cs-next .cs-note.important,
+.cs-standby .cs-note.important {
+  border-color: var(--urgent);
+  color: var(--urgent);
+  background: #2a2200;
+  background: color-mix(in srgb, var(--urgent) 18%, #000);
+}
+.cs-onair .cs-note {
+  background: #2a0000;
+  border-left-color: #ff4d4d;
+}
+.cs-onair .cs-note.important {
+  background: #facc15;
+  color: #000;
+  border-color: #fff;
+}
+.cs-note-mark {
+  display: block;
+  font-size: 4vmin;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5vmin;
+}
+
+/* 흔들림: 5초 전부터, 가까울수록 크게 (--shake) */
+.cs-shake {
+  animation: cs-shake 0.32s linear infinite;
+}
+@keyframes cs-shake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(calc(var(--shake) * -1), 0) rotate(-0.4deg);
+  }
+  50% {
+    transform: translate(var(--shake), 0) rotate(0.4deg);
+  }
+  75% {
+    transform: translate(calc(var(--shake) * -0.6), 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cs-shake {
+    animation: none;
+  }
+}
+
 .cs-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums;
 }
-.cs-empty {
-  font-size: 6vmin;
-  color: #6b7280;
-}
 
+/* ④ 그 다음 */
 .cs-footer {
   display: flex;
   flex-direction: column;
@@ -145,6 +270,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.cs-after-important {
+  color: #fde047;
+  font-weight: 800;
+}
 .cs-meta {
   display: flex;
   gap: 3vmin;
@@ -157,19 +286,6 @@
 }
 .cs-dim {
   color: #6b7280;
-}
-.cs-ok {
-  color: #22c55e;
-}
-.cs-bad {
-  color: #ef4444;
-}
-.cs-hold {
-  background: #f59e0b;
-  color: #000;
-  font-weight: 800;
-  padding: 0 2vmin;
-  border-radius: 1vmin;
 }
 
 .cs-start {
@@ -186,6 +302,7 @@
   gap: 3vmin;
   font-size: 6vmin;
   font-weight: 700;
+  z-index: 5;
 }
 .cs-start small {
   font-size: 3.5vmin;
@@ -195,8 +312,20 @@
 
 /* 가로 화면: 샷 크기 줄이고 여백 축소 */
 @media (orientation: landscape) {
+  .cs {
+    gap: 1.5vmin;
+  }
   .cs-shot {
-    font-size: 26vmin;
+    font-size: 20vmin;
+  }
+  .cs-band {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5vmin 3vmin;
+  }
+  .cs-band-time {
+    font-size: 14vmin;
   }
   .cs-note {
     font-size: 6.5vmin;

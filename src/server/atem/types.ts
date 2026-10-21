@@ -22,6 +22,7 @@ export interface AtemAdapter {
 /**
  * 큐 하나의 atemAction 을 어댑터 호출로 변환.
  * cut/auto 는 해당 카메라를 PVW 에 올린 뒤 트랜지션 → PVW/PGM 상태가 항상 ATEM 표준 흐름과 일치.
+ * macro/dsk 큐도 "이 카메라가 송출 중" 이어야 하므로, 송출 카메라가 다르면 먼저 컷한 뒤 실행.
  * macro/dsk 의 n 은 사람 기준 1부터 → atem-connection 은 0부터.
  */
 export async function executeAtemAction(atem: AtemAdapter, camera: number, action: AtemAction): Promise<void> {
@@ -35,12 +36,20 @@ export async function executeAtemAction(atem: AtemAdapter, camera: number, actio
       await atem.autoTransition();
       return;
     case 'macro':
+      await cutIfNeeded(atem, camera);
       await atem.runMacro(action.index - 1);
       return;
     case 'dsk':
+      await cutIfNeeded(atem, camera);
       await atem.setDownstreamKeyOnAir(action.keyer - 1, action.onAir);
       return;
   }
+}
+
+async function cutIfNeeded(atem: AtemAdapter, camera: number) {
+  if (atem.status().programInput === camera) return;
+  await atem.setPreview(camera);
+  await atem.cut();
 }
 
 /** ATEM_HOST 미설정 시: 아무 것도 하지 않고 상태만 'disabled' 로 보고 */

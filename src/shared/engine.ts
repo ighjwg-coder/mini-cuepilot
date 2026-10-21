@@ -2,7 +2,7 @@
 // 시간(now)은 항상 이벤트로 주입되고, ATEM 제어·타임코드 소스 제어는 effects 로만 표현된다.
 // 서버(ShowRuntime)가 effects 를 실제 장비/클락에 적용한다.
 
-import { parseAtemAction, switchesProgram, type AtemAction } from './atemAction';
+import { parseAtemAction, type AtemAction } from './atemAction';
 import type { Act, Cue, Service } from './types';
 
 export interface EngineState {
@@ -184,7 +184,8 @@ function goLive(
       cueIndex: target.cueIndex,
       cueStartedAt: startedAt,
       holdStartedAt: state.held ? now : null,
-      programCamera: switchesProgram(action) ? cue.camera : state.programCamera,
+      // 모든 큐는 자기 카메라를 송출로 만든다 (macro·dsk 큐도 필요하면 먼저 컷한 뒤 실행)
+      programCamera: action ? cue.camera : state.programCamera,
       timecodeSec: actChanged ? null : state.timecodeSec,
       lastTransition: { kind, at: now },
     },

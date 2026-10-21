@@ -9,6 +9,7 @@ import {
   upcoming,
   type UpcomingCue,
 } from '@shared/engine';
+import { parseNote } from '@shared/note';
 import type { ShowSnapshot } from '@shared/protocol';
 import type { Act, Cue, Service } from '@shared/types';
 import { AtemBadge, CamClients, ConnectionBadge, TimecodeBadge } from '../components/StatusBadges';
@@ -199,7 +200,7 @@ function CueHeadline({ cue }: { cue: Cue }) {
         <span className="shot">{cue.shotSize}</span>
         <span className="muted">{SHOT_LABEL[cue.shotSize]}</span>
       </div>
-      {cue.note && <div className="note">{cue.note}</div>}
+      {cue.note && <NoteText note={cue.note} className="note" />}
     </>
   );
 }
@@ -261,7 +262,7 @@ function RunSheet({
                 <b>{cue.shotSize}</b>
                 <span>
                   {cue.section && <span className="sec">[{cue.section}] </span>}
-                  {cue.note}
+                  <NoteText note={cue.note} />
                 </span>
               </div>
             );
@@ -270,5 +271,16 @@ function RunSheet({
         </div>
       ))}
     </div>
+  );
+}
+
+/** 메모 (중요 표시 ! 는 ⚠ 노란 글씨로) */
+function NoteText({ note, className }: { note: string; className?: string }) {
+  const n = parseNote(note);
+  if (!n.important) return <span className={className}>{n.text}</span>;
+  return (
+    <span className={className} style={{ color: '#facc15', fontWeight: 700 }}>
+      ⚠ {n.text}
+    </span>
   );
 }

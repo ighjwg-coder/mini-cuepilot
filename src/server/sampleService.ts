@@ -34,7 +34,7 @@ export const sampleServiceInput: ServiceInput = {
         c(3, 'MS', '메인 보컬 단독', { section: 'V1', bars: 8 }),
         c(1, 'WS', '무대 전체', { section: 'V1', bars: 8 }),
         c(6, 'CU', '건반 손', { section: 'PRE', bars: 4 }),
-        c(3, 'CU', '메인 보컬 얼굴 — 고음 직전', { section: 'PRE', bars: 4 }),
+        c(3, 'CU', '!메인 보컬 얼굴 — 고음 직전, 흔들림 주의', { section: 'PRE', bars: 4 }),
         c(1, 'WS', '후렴 진입 와이드', { section: 'CH', bars: 8 }),
         c(5, 'WS', '객석 반응', { section: 'CH', bars: 8, atemAction: 'auto' }),
         c(3, 'MS', '엔딩 메인 보컬', { section: 'OUTRO', bars: 4 }),
@@ -74,7 +74,7 @@ export const sampleServiceInput: ServiceInput = {
       bpm: null,
       beatsPerBar: 4,
       cues: [
-        c(2, 'MS', '연사 등단 — 이름 자막 ON (DSK1)', { atemAction: 'dsk:1:on' }),
+        c(2, 'MS', '!연사 등단 — 이름 자막 ON (DSK1), 걸음 따라가기', { atemAction: 'dsk:1:on' }),
         c(2, 'MS', '인사 시작 — 자막 OFF', { atemAction: 'dsk:1:off', durationSec: 180 }),
         c(5, 'WS', '박수 — 객석 와이드', { atemAction: 'auto' }),
       ],
