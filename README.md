@@ -33,7 +33,7 @@
 
 1. 설치 후 **CamCue** 실행 → 서버 창이 열리고 브라우저가 자동으로 `http://localhost:38080` 을 엽니다.
 2. 처음 실행 시 "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행** (코드 서명 미적용 무료 배포본).
-3. 설정 파일 `%LOCALAPPDATA%\CamCue\config.env` 를 메모장으로 열어 `ATEM_HOST` 등을 바꾸고 프로그램을 다시 실행합니다.
+3. 스위처·GPI 연결은 상단 **[장비 연결]** 화면에서 바꾸면 바로 적용됩니다 (설정은 `%LOCALAPPDATA%\CamCue\config.env` 에 저장).
 4. 큐시트는 `%LOCALAPPDATA%\CamCue\camcue.db` 에 저장되며, 새 버전으로 업데이트하거나 제거해도 유지됩니다.
 
 버전 규칙과 릴리스 절차는 [`docs/RELEASING.md`](docs/RELEASING.md), 변경 이력은 [`CHANGELOG.md`](CHANGELOG.md).
@@ -101,6 +101,8 @@ git push --follow-tags   # → GitHub Actions 가 Windows 설치 파일을 만�
 | `HOST` | `0.0.0.0` | 바인드 주소 (폰 접속을 위해 0.0.0.0 유지) |
 | `ATEM_HOST` | `mock` | 비움=ATEM 미사용 / `mock`=가상 스위처 / `192.168.10.240[:9910]`=실제 장비 |
 | `ATEM_ME` | `1` | 제어할 M/E 버스 번호 |
+| `SWITCHER` | `atem` | 스위처 종류: `atem` / `ikegami` / `gpi` / `none` — [3-6](#3-6-이케가미-라우터--gpi-연결-003) |
+| `IKEGAMI_*`, `GPI_*`, `TALLY_SOURCE` | - | 이케가미 RS-422 · GPI 모듈 설정 — [3-6](#3-6-이케가미-라우터--gpi-연결-003) |
 | `TLS_CERT`, `TLS_KEY` | - | (선택) HTTPS 인증서 경로 → 폰 Wake Lock 보장 |
 
 ---
@@ -209,6 +211,23 @@ curl -X POST http://192.168.10.10:38080/api/show/command \
   -H 'content-type: application/json' -d '{"command":"GO"}'
 # command: GO | BACK | HOLD | RESET | JUMP(+ actIndex, cueIndex)
 ```
+
+### 3-6. 이케가미 라우터 · GPI 연결 (0.0.3~)
+
+상단 **[장비 연결]** (`/devices`) 화면에서 설정·시험합니다. 저장하면 프로그램을 다시 시작하지 않고 바로 다시 연결합니다.
+
+| 방식 | 연결 | 하는 일 | 필요한 것 |
+|---|---|---|---|
+| **이케가미 라우터** (`SWITCHER=ikegami`) | USB-RS422 변환기 → 라우터 `422` 포트 (D-sub 9) | 큐 컷 = PGM 출력의 크로스포인트 전환 명령 전송 | 크로스포인트 명령 형식 (`IKEGAMI_TAKE`) |
+| **GPI 탈리 입력** (`TALLY_SOURCE=gpi`) | 라우터 GPI OUT → 절연 입력 모듈(Modbus TCP) → LAN | 실제 송출 카메라를 읽어 CueScreen·디렉터 탈리에 표시, 큐와 다르면 경고 | Modbus TCP 입력 모듈 (ADAM-6050, ioLogik E1210 등) |
+| **GPI 접점 컷** (`SWITCHER=gpi`) | 모듈 출력 → 라우터 GPI IN | 카메라별 출력에 펄스 → 장비 쪽에 지정한 동작 실행 | 라우터 GPI IN 동작 지정 |
+
+- 이케가미 MUPS-FRM45 매뉴얼 기준 RS-422 통신 설정은 **38400bps · 8bit · 1stop · ODD** (기본값).
+- 명령 바이트 형식은 매뉴얼에 없어 **템플릿**으로 넣습니다: `02 {OUT0} {IN0} {SUM}` 처럼 16진수 바이트 + 자리표시
+  (`{IN}`/`{OUT}` 1부터 번호, `{IN0}`/`{OUT0}` 0부터, `{SUM}` 앞 바이트 합 하위 8비트, `{XOR}` 앞 바이트 XOR).
+- 라우터에는 PVW·믹스가 없어 `auto` 큐도 컷으로 동작하고, `macro`·`dsk` 큐는 실행되지 않습니다(디렉터 로그에 기록).
+- 장비 없이 시험: `IKEGAMI_PORT=mock` (보낸 바이트를 모니터에 기록), `GPI_HOST=mock` (화면에서 입력 채널을 눌러 켜고 끔).
+- 장비 연결 화면의 **시험 컷** 버튼과 **RS-422 송수신 모니터**(임의 16진수 전송)로 실제 장비 반응을 확인할 수 있습니다.
 
 ---
 

@@ -163,7 +163,7 @@ function LivePanel({
 
       <div>
         <div className="row muted" style={{ marginBottom: 6, fontSize: 12 }}>
-          탈리 ({tally.source === 'atem' ? 'ATEM 실제 상태' : '엔진 추정'}) <span className="spacer" />
+          탈리 ({tally.source === 'gpi' ? 'GPI 실제 신호' : tally.source === 'atem' ? '스위처 상태' : '큐 진행 추정'}) <span className="spacer" />
           <button
             className="danger"
             onClick={() => confirm('진행을 STANDBY 로 초기화할까요?') && onCommand({ command: 'RESET' })}
@@ -171,6 +171,11 @@ function LivePanel({
             RESET
           </button>
         </div>
+        {tally.source === 'gpi' && state.programCamera !== null && tally.program !== state.programCamera && (
+          <div className="tally-mismatch">
+            ⚠️ 실제 송출 {tally.program ? `CAM ${tally.program}` : '없음'} — 큐는 CAM {state.programCamera}
+          </div>
+        )}
         <div className="tally-grid">
           {Array.from({ length: 8 }, (_, i) => i + 1).map((n) => (
             <div key={n} className={tally.program === n ? 'pgm' : tally.preview === n ? 'pvw' : ''}>

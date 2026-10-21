@@ -11,9 +11,13 @@ export type ShowCommand =
   | { command: 'RESET' }
   | { command: 'JUMP'; actIndex: number; cueIndex: number };
 
+/**
+ * 스위처(영상 전환 장비) 연결 상태. 이름은 v0.0.1 호환을 위해 AtemStatus 유지.
+ *   disabled: 제어 안 함 / mock: 가상 ATEM / real: 실제 ATEM
+ *   ikegami: 이케가미 라우터(RS-422) / gpi: GPI 모듈 접점 출력으로 컷
+ */
 export interface AtemStatus {
-  /** disabled: ATEM_HOST 미설정 / mock: 가상 장비 / real: 실제 장비 */
-  mode: 'disabled' | 'mock' | 'real';
+  mode: 'disabled' | 'mock' | 'real' | 'ikegami' | 'gpi';
   host: string | null;
   connected: boolean;
   model: string | null;
@@ -25,8 +29,12 @@ export interface AtemStatus {
 export interface Tally {
   program: number | null;
   preview: number | null;
-  /** atem: 실제(또는 mock) 스위처 상태 / engine: 미연결 시 엔진 추정값 */
-  source: 'atem' | 'engine';
+  /**
+   * atem: 스위처가 보고한 상태 (ATEM·이케가미 등, 이름은 호환 유지)
+   * gpi: GPI 모듈로 읽은 실제 탈리 신호
+   * engine: 장비 미연결 시 큐 진행 기준 추정값
+   */
+  source: 'atem' | 'gpi' | 'engine';
 }
 
 export interface ShowSnapshot {

@@ -13,11 +13,14 @@ import {
 import type { ShowCommand, ShowSnapshot, Tally } from '../shared/protocol';
 import type { Service } from '../shared/types';
 import { executeAtemAction, type AtemAdapter } from './atem/types';
+import type { TallyInput } from './devices/manager';
 import type { TimecodeSource } from './timecode';
 
 export interface RuntimeOptions {
   atem: AtemAdapter;
   timecode: TimecodeSource;
+  /** 실제 탈리 신호(GPI). active() 일 때 스위처 보고값보다 우선 */
+  tallyInput?: TallyInput;
   now?: () => number;
   /** SECTION 자동 진행 판정 주기(ms) */
   tickMs?: number;
@@ -41,11 +44,13 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
   private atemQueue: Promise<void> = Promise.resolve();
   private readonly unsubs: Array<() => void> = [];
   private readonly now: () => number;
-  private readonly opts: Required<Omit<RuntimeOptions, 'now'>>;
+  private readonly opts: Required<Omit<RuntimeOptions, 'now' | 'tallyInput'>>;
+  private readonly tallyInput: TallyInput | undefined;
 
   constructor(options: RuntimeOptions) {
     super();
     this.now = options.now ?? Date.now;
+    this.tallyInput = options.tallyInput;
     this.opts = {
       tickMs: 20,
       autoPreview: true,
@@ -56,6 +61,7 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
       this.opts.timecode.onTimecode((seconds) => this.apply({ type: 'TIMECODE', now: this.now(), seconds })),
       this.opts.atem.onStatus(() => this.emitState()),
     );
+    if (this.tallyInput) this.unsubs.push(this.tallyInput.onChange(() => this.emitState()));
   }
 
   get service() {
@@ -130,9 +136,15 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
 
   tally(): Tally {
     const atem = this.opts.atem.status();
+    const next = () => (this._service ? upcoming(this._service, this._state, this.now(), 1)[0]?.cue.camera ?? null : null);
+    // 실제 탈리 신호가 있으면 PGM 은 그 값, PVW 는 스위처 보고값(없으면 다음 큐)
+    if (this.tallyInput?.active()) {
+      const program = this.tallyInput.program();
+      const preview = atem.connected && atem.previewInput !== program ? atem.previewInput : next();
+      return { program, preview: preview === program ? null : preview, source: 'gpi' };
+    }
     if (atem.connected) return { program: atem.programInput, preview: atem.previewInput, source: 'atem' };
-    const next = this._service ? upcoming(this._service, this._state, this.now(), 1)[0] : undefined;
-    return { program: this._state.programCamera, preview: next?.cue.camera ?? null, source: 'engine' };
+    return { program: this._state.programCamera, preview: next(), source: 'engine' };
   }
 
   snapshot(): ShowSnapshot {

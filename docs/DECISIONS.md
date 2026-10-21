@@ -158,6 +158,25 @@
 - GitHub Actions CI(`.github/workflows/ci.yml`): `npm ci → typecheck → test → build`.
 - Node 20.12+ 요구 (`process.loadEnvFile`).
 
+## 13. 이케가미 라우터 · GPI 연동 (0.0.3~)
+
+현장 장비: Ikegami **MUPS-FRM45** (45×36 라우팅 스위처, 매뉴얼 NN-8324276R) + K2E Tekpoint **TC-3200** 탈리 분배기 (라우터 GPI OUT → TC-3200).
+
+| 항목 | 결정 | 이유 |
+|---|---|---|
+| 어댑터 구조 | 기존 `AtemAdapter` 인터페이스를 그대로 구현 (`IkegamiRouterAdapter`, `GpiSwitcherAdapter`) | 엔진·런타임·화면 수정 없이 스위처만 교체. 이름은 호환을 위해 유지 |
+| 라우터 동작 매핑 | setPreview = 다음 카메라 기억, cut/auto = PGM 출력 크로스포인트 전환, macro/dsk = 미지원 오류 | 라우터에는 PVW·M/E·DSK 가 없음 |
+| RS-422 명령 형식 | **템플릿(`IKEGAMI_TAKE`)으로 입력**, 프로토콜을 코드에 넣지 않음 | 매뉴얼에 Sony DVS/BVS·GVG-200 지원만 명시되고 바이트 형식이 없음. 추측으로 구현하면 송출 장비에 잘못된 명령을 보낼 위험 → 제조사 문서를 받으면 프로그램 수정 없이 반영 |
+| 통신 기본값 | 38400 / 8 / 1 / ODD | 매뉴얼 p.11 |
+| 시리얼 라이브러리 | `serialport` (네이티브, 필요할 때만 동적 import) | Windows COM 포트 표준. 프리빌드 바이너리 포함 → 설치판에 컴파일 불필요. CI 스모크 테스트에서 Windows 로드 확인 |
+| 실제 탈리 | GPI 입력 모듈을 **Modbus TCP** 로 폴링(기본 50ms), `TALLY_SOURCE=gpi` 면 스위처 보고값보다 우선 | 라우터 GPI OUT 은 오픈 컬렉터 접점 → PC 가 직접 못 읽음. Modbus TCP 는 산업용 입력 모듈 공통 규격이라 특정 제품에 묶이지 않음. 패널로 직접 컷해도 실제 송출이 반영됨 |
+| Modbus 구현 | 자체 최소 클라이언트 (함수 01·02·05), 요청 직렬화, 시간 초과 시 재연결 | 필요한 기능이 3개뿐, 의존성 최소화. 저가 모듈의 동시 요청 문제 회피 |
+| 극성 | `GPI_TALLY_INVERT` | 배선(전압 감지 방식)에 따라 ON AIR 가 입력 ON/OFF 어느 쪽일지 현장 측정 전 확정 불가 |
+| 큐 불일치 경고 | GPI 실측 PGM ≠ 엔진 PGM 이면 디렉터에 경고 | 패널 수동 컷·명령 실패를 바로 알아챔 |
+| 설정 변경 | 장비 연결 화면에서 저장 → config.env 갱신 + **실행 중 재연결** (`SwitchableAdapter` 로 안쪽 어댑터만 교체) | 현장 시험 중 프로그램 재시작 반복 방지. 파일의 주석·다른 값은 보존 |
+| 가상 장비 | `IKEGAMI_PORT=mock`, `GPI_HOST=mock` | 장비 없는 곳에서 화면·흐름 시험 |
+| 안전 | 시험 컷 버튼은 확인 창, 기본값은 기존과 동일(ATEM mock) | 실제 송출 장비 오조작 방지, 기존 사용자 영향 없음 |
+
 ## 12. 범용 용어 (0.0.3~)
 
 | 항목 | 결정 | 이유 |

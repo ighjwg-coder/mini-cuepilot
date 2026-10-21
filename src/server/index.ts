@@ -3,12 +3,13 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { networkInterfaces } from 'node:os';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 import { APP_NAME, APP_VERSION } from '../shared/version';
 import { buildApp } from './app';
-import { createAtemAdapter } from './atem';
 import { prepareDataDir, saveConfigPort, type DataDirResult } from './bootstrap';
+import { DeviceManager } from './devices/manager';
 import { DEFAULT_PORT, isCamCueRunning, listenWithFallback } from './listen';
 import { ServiceRepo } from './repo';
 import { ShowRuntime } from './runtime';
@@ -32,8 +33,21 @@ const webDir = fileURLToPath(new URL('../../dist/web', import.meta.url));
 
 const prisma = new PrismaClient();
 const repo = new ServiceRepo(prisma);
-const atem = createAtemAdapter(process.env.ATEM_HOST);
-const runtime = new ShowRuntime({ atem, timecode: new SimulatedTimecodeSource() });
+const SWITCHER_LABEL: Record<string, string> = {
+  disabled: '사용 안 함',
+  mock: '가상 ATEM (mock)',
+  real: 'ATEM',
+  ikegami: '이케가미 라우터 (RS-422)',
+  gpi: 'GPI 접점 컷',
+};
+
+// 스위처(ATEM / 이케가미 라우터 / GPI) + GPI 탈리 입력. 장비 연결 화면에서 바꾸면 이 파일에 저장된다
+const devices = new DeviceManager({
+  configPath: dataDir?.configPath ?? resolve('.env'),
+  log: (msg, err) => console.warn(`  [장비] ${msg}: ${(err as Error)?.message ?? err ?? ''}`),
+});
+const atem = devices.switcher;
+const runtime = new ShowRuntime({ atem, timecode: new SimulatedTimecodeSource(), tallyInput: devices.tallyInput });
 
 // 설치 후 첫 실행: 샘플 행사를 넣어 바로 둘러볼 수 있게 함
 if (dataDir?.freshDb) await repo.create(sampleServiceInput);
@@ -47,7 +61,7 @@ const https =
     : undefined;
 const proto = https ? 'https' : 'http';
 // 설치판은 콘솔 창이 요청 로그로 넘치지 않도록 경고 이상만 출력
-const app = await buildApp({ repo, runtime, webDir, logger: dataDir ? { level: 'warn' } : true, https });
+const app = await buildApp({ repo, runtime, devices, webDir, logger: dataDir ? { level: 'warn' } : true, https });
 
 // 포트: 지정 포트 → 막혀 있으면(Windows 예약 포트 EACCES / 사용 중 EADDRINUSE) 다른 5자리 포트로 자동 변경
 let port: number;
@@ -83,8 +97,9 @@ try {
   throw err;
 }
 
-// ATEM 연결은 백그라운드에서. 실패해도 앱은 계속 동작하고 상태만 표시한다.
-atem.connect().catch((err) => app.log.warn({ err }, 'ATEM 연결 실패 — ATEM 없이 계속 진행합니다'));
+// 장비 연결은 백그라운드에서. 실패해도 앱은 계속 동작하고 상태만 표시한다.
+await devices.start();
+const sw = atem.status();
 
 const lanUrls = Object.values(networkInterfaces())
   .flat()
@@ -100,7 +115,10 @@ console.log(`
    이 PC 에서 열기 : ${webUrl}${devMode ? '  (개발 모드: Vite)' : ''}
    카메라맨 폰     : ${camUrls.map((u) => `${u}/cam/1`).join('   ') || '(네트워크 연결 없음)'}
                      (/cam/1 ~ /cam/8 — 같은 Wi-Fi 에서 접속)
-   ATEM            : ${atem.status().mode}${atem.status().host && atem.status().mode === 'real' ? ` (${atem.status().host})` : ''}${
+   스위처          : ${SWITCHER_LABEL[sw.mode]}${sw.host && sw.mode !== 'mock' ? ` (${sw.host})` : ''}${
+     devices.config.tally.source === 'gpi' ? '\n   탈리 입력       : GPI 모듈 (' + (devices.config.gpi.kind === 'none' ? '미설정' : devices.config.gpi.host) + ')' : ''
+   }
+   장비 연결 설정  : ${webUrl}/devices${
      dataDir
        ? `\n   설정 파일       : ${dataDir.configPath}\n   데이터          : ${dataDir.dbPath}${
            dataDir.migratedFrom ? `\n   (이전 버전 데이터를 가져왔습니다: ${dataDir.migratedFrom})` : ''
@@ -132,7 +150,7 @@ function openBrowser(url: string) {
 
 const shutdown = async () => {
   runtime.stop();
-  await atem.disconnect().catch(() => {});
+  await devices.stop().catch(() => {});
   await app.close();
   await prisma.$disconnect();
   process.exit(0);

@@ -15,6 +15,7 @@ export function TopBar({ children }: { children?: ReactNode }) {
         </NavLink>
         <NavLink to="/director">디렉터</NavLink>
         <NavLink to="/editor">에디터</NavLink>
+        <NavLink to="/devices">장비 연결</NavLink>
       </nav>
       <div className="spacer" />
       {children}

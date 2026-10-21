@@ -1,5 +1,6 @@
 import type { ServiceInput } from '@shared/schema';
 import type { Service, ServiceSummary } from '@shared/types';
+import type { DeviceSettings, DevicesSnapshot, SerialLogEntry } from '@shared/devices';
 import type { ShowCommand, ShowSnapshot } from '@shared/protocol';
 
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
@@ -30,4 +31,13 @@ export const api = {
   exportUrl: (id: string) => `/api/services/${id}/export`,
   loadShow: (serviceId: string) => request<ShowSnapshot>('POST', '/api/show/load', { serviceId }),
   command: (cmd: ShowCommand) => request<ShowSnapshot>('POST', '/api/show/command', cmd),
+  // 장비 연결
+  devices: () => request<DevicesSnapshot>('GET', '/api/devices'),
+  saveDeviceSettings: (settings: Partial<DeviceSettings>) => request<DevicesSnapshot>('PUT', '/api/devices/settings', settings),
+  serialPorts: () => request<{ ports: Array<{ path: string; manufacturer: string | null }> }>('GET', '/api/devices/serial-ports'),
+  serialLog: (after: number) => request<{ entries: SerialLogEntry[] }>('GET', `/api/devices/serial-log?after=${after}`),
+  sendSerial: (hex: string) => request<DevicesSnapshot>('POST', '/api/devices/serial/send', { hex }),
+  testTake: (camera: number) => request<DevicesSnapshot>('POST', '/api/devices/test-take', { camera }),
+  pulseGpi: (channel: number) => request<DevicesSnapshot>('POST', '/api/devices/gpi/pulse', { channel }),
+  mockGpiInput: (channel: number, on: boolean) => request<DevicesSnapshot>('POST', '/api/devices/gpi/mock-input', { channel, on }),
 };
