@@ -6,6 +6,7 @@ import { MAX_CAMERA, MIN_CAMERA, type Cue } from '@shared/types';
 import { SHOT_LABEL, cameraColor, formatClock } from '../lib/format';
 import { useShow, useTicker } from '../lib/useShow';
 import { useWakeLock } from '../lib/useWakeLock';
+import { inApp, vibrate } from '../lib/appBridge';
 import './cuescreen.css';
 
 export function CueScreenPage() {
@@ -23,7 +24,8 @@ export function CueScreenPage() {
 function CueScreen({ camera }: { camera: number }) {
   const { connected, service, snapshot, serverNow } = useShow('cam', camera);
   const wake = useWakeLock();
-  const [started, setStarted] = useState(false);
+  // 앱에서는 화면 유지·전체 화면을 앱이 처리 → 바로 시작
+  const [started, setStarted] = useState(inApp);
   useTicker(100);
 
   useEffect(() => {
@@ -37,13 +39,24 @@ function CueScreen({ camera }: { camera: number }) {
   const onAir = tally ? tally.program === camera : false;
   const onPreview = !onAir && tally?.preview === camera;
 
-  // ON AIR 진입 시 진동 (안드로이드)
+  // ON AIR 진입 시 진동 (안드로이드). 브라우저는 화면을 한 번 탭한 뒤에만 허용됨
   const wasOnAir = useRef(false);
   useEffect(() => {
-    // 진동은 사용자가 화면을 한 번 탭한 뒤에만 허용됨
-    if (onAir && !wasOnAir.current && started) navigator.vibrate?.(200);
+    if (onAir && !wasOnAir.current && started) vibrate([400]);
     wasOnAir.current = onAir;
   }, [onAir, started]);
+
+  // 내 차례 3초 전 짧게 두 번 (정확한 시간을 아는 큐만)
+  const nextEta = !view?.current && view?.next?.exact ? view.next.etaMs : null;
+  const nextId = view?.next?.cue.id ?? null;
+  const warned = useRef<string | null>(null);
+  useEffect(() => {
+    if (!started || nextEta == null || nextId == null) return;
+    if (nextEta <= 3000 && nextEta > 0 && warned.current !== nextId) {
+      warned.current = nextId;
+      vibrate([120, 100, 120]);
+    }
+  }, [nextEta, nextId, started]);
 
   const start = () => {
     setStarted(true);
@@ -108,7 +121,7 @@ function CueScreen({ camera }: { camera: number }) {
           {state?.held && <span className="cs-hold">HOLD</span>}
           <span className="cs-spacer" />
           <span className={connected ? 'cs-ok' : 'cs-bad'}>{connected ? '● 연결됨' : '● 재연결 중'}</span>
-          <span className="cs-dim">{wakeLabel(wake.mode)}</span>
+          <span className="cs-dim">{inApp ? '앱 · 화면 유지 ON' : wakeLabel(wake.mode)}</span>
         </div>
       </footer>
 

@@ -4,10 +4,12 @@ import type { ServiceSummary } from '@shared/types';
 import { TopBar } from '../components/TopBar';
 import { api } from '../lib/api';
 import { cameraColor } from '../lib/format';
+import { QrCode } from '../components/QrCode';
 
 export function HomePage() {
   const [services, setServices] = useState<ServiceSummary[]>([]);
   const [lanUrls, setLanUrls] = useState<string[]>([]);
+  const [apk, setApk] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -15,7 +17,13 @@ export function HomePage() {
   const reload = () => api.listServices().then(setServices).catch((e) => setError(String(e.message ?? e)));
   useEffect(() => {
     reload();
-    api.info().then((i) => setLanUrls(i.lanUrls)).catch(() => {});
+    api
+      .info()
+      .then((i) => {
+        setLanUrls(i.lanUrls);
+        setApk(i.apk);
+      })
+      .catch(() => {});
   }, []);
 
   const goLive = async (id: string) => {
@@ -115,10 +123,36 @@ export function HomePage() {
         </section>
 
         <section>
-          <h2>📱 카메라 CueScreen</h2>
-          <p className="muted" style={{ marginTop: 0 }}>
-            카메라맨 폰(같은 Wi-Fi)에서 아래 주소로 접속하세요: <span className="mono">{origin}/cam/번호</span>
-          </p>
+          <h2>📱 카메라맨 폰 연결</h2>
+          <div className="phone-connect">
+            <div>
+              <h3>안드로이드 — CamCue 앱 (권장)</h3>
+              {apk ? (
+                <>
+                  <ol>
+                    <li>폰 카메라로 QR 을 찍어 앱을 내려받아 설치 (처음 한 번)</li>
+                    <li>앱 실행 → 같은 Wi-Fi 의 이 PC 를 <b>자동으로 찾아</b> 접속</li>
+                    <li>카메라 번호를 고르면 끝 — 화면 꺼짐 방지·진동 자동</li>
+                  </ol>
+                  <QrCode url={`${origin}/app`} />
+                  <div className="muted mono" style={{ fontSize: 12 }}>
+                    {origin}/app
+                  </div>
+                </>
+              ) : (
+                <p className="muted">
+                  이 실행본에는 앱 설치 파일이 없습니다. GitHub Releases 의 <span className="mono">CamCue-Android-*.apk</span> 를 받아 설치하세요.
+                </p>
+              )}
+            </div>
+            <div>
+              <h3>아이폰 · 기타 — 브라우저</h3>
+              <p className="muted" style={{ marginTop: 0 }}>
+                같은 Wi-Fi 에서 아래 주소로 접속 (Safari 공유 → <b>홈 화면에 추가</b> 하면 앱처럼 실행)
+              </p>
+              <p className="mono">{origin}/cam/번호</p>
+            </div>
+          </div>
           <div className="cam-links">
             {Array.from({ length: 8 }, (_, i) => i + 1).map((n) => (
               <a key={n} href={`/cam/${n}`} style={{ borderLeft: `6px solid ${cameraColor(n)}` }}>

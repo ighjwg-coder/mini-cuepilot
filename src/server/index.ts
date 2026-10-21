@@ -10,6 +10,7 @@ import { APP_NAME, APP_VERSION } from '../shared/version';
 import { buildApp } from './app';
 import { prepareDataDir, saveConfigPort, type DataDirResult } from './bootstrap';
 import { DeviceManager } from './devices/manager';
+import { DISCOVERY_PORT, discoveryInfo, startDiscoveryResponder, type DiscoveryResponder } from './discovery';
 import { DEFAULT_PORT, isCamCueRunning, listenWithFallback } from './listen';
 import { ServiceRepo } from './repo';
 import { ShowRuntime } from './runtime';
@@ -30,6 +31,8 @@ const preferredPort = Number(process.env.PORT) || DEFAULT_PORT;
 const host = process.env.HOST ?? '0.0.0.0';
 const openOnStart = process.env.CAMCUE_OPEN_BROWSER === '1';
 const webDir = fileURLToPath(new URL('../../dist/web', import.meta.url));
+// 안드로이드 앱 설치 파일 (배포판에 동봉) — 폰에서 http://PC:포트/app 으로 내려받음
+const apkPath = fileURLToPath(new URL('../../camcue.apk', import.meta.url));
 
 const prisma = new PrismaClient();
 const repo = new ServiceRepo(prisma);
@@ -61,7 +64,7 @@ const https =
     : undefined;
 const proto = https ? 'https' : 'http';
 // 설치판은 콘솔 창이 요청 로그로 넘치지 않도록 경고 이상만 출력
-const app = await buildApp({ repo, runtime, devices, webDir, logger: dataDir ? { level: 'warn' } : true, https });
+const app = await buildApp({ repo, runtime, devices, webDir, apkPath, logger: dataDir ? { level: 'warn' } : true, https });
 
 // 포트: 지정 포트 → 막혀 있으면(Windows 예약 포트 EACCES / 사용 중 EADDRINUSE) 다른 5자리 포트로 자동 변경
 let port: number;
@@ -97,6 +100,14 @@ try {
   throw err;
 }
 
+// 폰 앱 자동 검색 응답 (UDP). 실패해도 앱은 HTTP 스캔·IP 직접 입력으로 접속 가능
+let discovery: DiscoveryResponder | null = null;
+try {
+  discovery = await startDiscoveryResponder(() => discoveryInfo(port, proto));
+} catch (err) {
+  console.warn(`  [알림] 폰 앱 자동 검색(UDP ${DISCOVERY_PORT})을 시작하지 못했습니다: ${(err as Error).message}`);
+}
+
 // 장비 연결은 백그라운드에서. 실패해도 앱은 계속 동작하고 상태만 표시한다.
 await devices.start();
 const sw = atem.status();
@@ -118,7 +129,8 @@ console.log(`
    스위처          : ${SWITCHER_LABEL[sw.mode]}${sw.host && sw.mode !== 'mock' ? ` (${sw.host})` : ''}${
      devices.config.tally.source === 'gpi' ? '\n   탈리 입력       : GPI 모듈 (' + (devices.config.gpi.kind === 'none' ? '미설정' : devices.config.gpi.host) + ')' : ''
    }
-   장비 연결 설정  : ${webUrl}/devices${
+   장비 연결 설정  : ${webUrl}/devices
+   폰 앱 자동 검색 : ${discovery ? `켜짐 (UDP ${discovery.port})` : '꺼짐 — 앱에서 IP 직접 입력'}${existsSync(apkPath) ? `\n   폰 앱 설치      : ${lanUrls[0] ?? webUrl}/app` : ''}${
      dataDir
        ? `\n   설정 파일       : ${dataDir.configPath}\n   데이터          : ${dataDir.dbPath}${
            dataDir.migratedFrom ? `\n   (이전 버전 데이터를 가져왔습니다: ${dataDir.migratedFrom})` : ''
@@ -151,6 +163,7 @@ function openBrowser(url: string) {
 const shutdown = async () => {
   runtime.stop();
   await devices.stop().catch(() => {});
+  await discovery?.close().catch(() => {});
   await app.close();
   await prisma.$disconnect();
   process.exit(0);
