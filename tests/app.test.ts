@@ -55,7 +55,7 @@ async function connect() {
 describe('REST API', () => {
   let svc: Service;
 
-  it('예배 생성/목록/조회', async () => {
+  it('행사 생성/목록/조회', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/import', payload: sampleServiceInput });
     expect(res.statusCode).toBe(201);
     svc = res.json();
@@ -65,10 +65,10 @@ describe('REST API', () => {
     expect((await app.inject('/api/services/none')).statusCode).toBe(404);
   });
 
-  it('빈 예배 생성', async () => {
-    const res = await app.inject({ method: 'POST', url: '/api/services', payload: { title: '새 예배', date: '2026-10-18' } });
+  it('빈 행사 생성', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/services', payload: { title: '새 행사', date: '2026-10-18' } });
     expect(res.statusCode).toBe(201);
-    expect(res.json()).toMatchObject({ title: '새 예배', acts: [] });
+    expect(res.json()).toMatchObject({ title: '새 행사', acts: [] });
   });
 
   it('검증 실패 400 + 메시지', async () => {
@@ -105,10 +105,10 @@ describe('REST API', () => {
 
   it('라이브 중 저장하면 런타임에 반영', async () => {
     const current = (await app.inject(`/api/services/${svc.id}`)).json() as Service;
-    current.acts[0].title = '찬양 1 (수정)';
+    current.acts[0].title = '오프닝 공연 (수정)';
     const res = await app.inject({ method: 'PUT', url: `/api/services/${svc.id}`, payload: current });
     expect(res.statusCode).toBe(200);
-    expect(runtime.service!.acts[0].title).toBe('찬양 1 (수정)');
+    expect(runtime.service!.acts[0].title).toBe('오프닝 공연 (수정)');
   });
 });
 

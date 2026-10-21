@@ -1,4 +1,4 @@
-// 샘플 예배 시드. 같은 제목의 예배가 있으면 건너뛴다 (--force 시 재생성)
+// 샘플 행사 시드. 같은 제목의 행사가 있으면 건너뛴다 (--force 시 재생성)
 import { existsSync } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
 import { ServiceRepo } from '../src/server/repo';

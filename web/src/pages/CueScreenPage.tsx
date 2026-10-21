@@ -76,7 +76,7 @@ function CueScreen({ camera }: { camera: number }) {
 
       <main className="cs-main">
         {!service ? (
-          <div className="cs-empty">로드된 예배가 없습니다</div>
+          <div className="cs-empty">로드된 행사가 없습니다</div>
         ) : mainCue ? (
           <>
             <div className="cs-label">{view?.current ? '지금 내 샷' : '다음 내 샷'}</div>
@@ -92,7 +92,7 @@ function CueScreen({ camera }: { camera: number }) {
             )}
           </>
         ) : (
-          <div className="cs-empty">이 예배에 남은 CAM {camera} 큐가 없습니다</div>
+          <div className="cs-empty">이 행사에 남은 CAM {camera} 큐가 없습니다</div>
         )}
       </main>
 

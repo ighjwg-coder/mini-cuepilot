@@ -12,14 +12,23 @@ export function ConnectionBadge({ connected }: { connected: boolean }) {
 export function AtemBadge({ snapshot }: { snapshot: ShowSnapshot | null }) {
   const atem = snapshot?.atem;
   if (!atem) return null;
-  const label = atem.mode === 'disabled' ? 'ATEM 미사용' : atem.mode === 'mock' ? 'ATEM MOCK' : `ATEM ${atem.host}`;
+  const label =
+    atem.mode === 'disabled'
+      ? '스위처 미사용'
+      : atem.mode === 'mock'
+        ? 'ATEM MOCK'
+        : atem.mode === 'ikegami'
+          ? `이케가미 ${atem.host}`
+          : atem.mode === 'gpi'
+            ? `GPI 컷 ${atem.host}`
+            : `ATEM ${atem.host}`;
   const cls = atem.mode === 'disabled' ? '' : atem.connected ? 'ok' : 'bad';
   return (
-    <span className="badge" title={atem.lastError ?? atem.model ?? ''}>
+    <a className="badge" href="/devices" style={{ color: 'inherit', textDecoration: 'none' }} title={atem.lastError ?? atem.model ?? '장비 연결 설정'}>
       <span className={`dot ${cls}`} /> {label}
       {atem.mode !== 'disabled' && !atem.connected && <span className="muted">연결 안 됨</span>}
       {atem.connected && atem.model && <span className="muted">{atem.model}</span>}
-    </span>
+    </a>
   );
 }
 

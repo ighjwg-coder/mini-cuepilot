@@ -1,0 +1,117 @@
+/* ───────── 장비 연결 ───────── */
+.devices .small {
+  font-size: 12px;
+}
+.devices code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--panel-2);
+  padding: 0 4px;
+  border-radius: 4px;
+}
+.devices .wrap {
+  flex-wrap: wrap;
+}
+.dev-status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.dev-status > div {
+  display: grid;
+  gap: 4px;
+}
+.dev-err {
+  color: #fca5a5;
+  font-size: 12px;
+  word-break: break-all;
+}
+.dev-errors {
+  margin: 12px 0 0;
+  padding: 8px 12px 8px 28px;
+  border: 1px solid #7f1d1d;
+  border-radius: 8px;
+  color: #fca5a5;
+  font-size: 13px;
+}
+.dev-field {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.dev-field input:not([type='checkbox']) {
+  min-width: 0;
+  max-width: 100%;
+}
+.dev-lamps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 6px;
+}
+.dev-lamps .lamp {
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  text-align: center;
+}
+.dev-lamps .lamp:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.dev-lamps .lamp.on {
+  background: var(--pgm);
+  border-color: var(--pgm);
+  color: #fff;
+}
+.dev-save {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  margin: 0 0 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  z-index: 2;
+}
+.dev-log {
+  height: 220px;
+  overflow: auto;
+  background: #07090b;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.dev-log-tx {
+  color: #93c5fd;
+}
+.dev-log-rx {
+  color: #86efac;
+}
+.dev-log-error {
+  color: #fca5a5;
+}
+.dev-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  z-index: 10;
+  cursor: pointer;
+}
+.dev-toast.ok {
+  border-color: var(--pvw);
+}
+.dev-toast.bad {
+  border-color: var(--pgm);
+}

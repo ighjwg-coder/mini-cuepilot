@@ -28,7 +28,7 @@ export function HomePage() {
   };
 
   const create = async () => {
-    const title = prompt('예배 이름', '주일 예배');
+    const title = prompt('행사 이름', '새 행사');
     if (!title) return;
     const today = new Date().toISOString().slice(0, 10);
     const s = await api.createService(title, today).catch((e) => (setError(e.message), null));
@@ -58,7 +58,7 @@ export function HomePage() {
         )}
         <section>
           <div className="row" style={{ marginBottom: 12 }}>
-            <h2 style={{ margin: 0 }}>예배 큐시트</h2>
+            <h2 style={{ margin: 0 }}>행사 큐시트</h2>
             <div className="spacer" />
             <button onClick={() => fileRef.current?.click()}>JSON 가져오기</button>
             <input
@@ -73,14 +73,14 @@ export function HomePage() {
               }}
             />
             <button className="primary" onClick={create}>
-              + 새 예배
+              + 새 행사
             </button>
           </div>
           <table>
             <thead>
               <tr className="muted">
                 <th>날짜</th>
-                <th>예배</th>
+                <th>행사</th>
                 <th>순서/큐</th>
                 <th />
               </tr>
@@ -106,7 +106,7 @@ export function HomePage() {
               {services.length === 0 && (
                 <tr>
                   <td colSpan={4} className="muted">
-                    예배가 없습니다. <code>npm run db:seed</code> 로 샘플을 넣거나 새 예배를 만드세요.
+                    행사가 없습니다. <code>npm run db:seed</code> 로 샘플을 넣거나 새 행사를 만드세요.
                   </td>
                 </tr>
               )}

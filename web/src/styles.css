@@ -432,3 +432,13 @@ kbd {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.tally-mismatch {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--hold);
+  border-radius: 8px;
+  color: var(--hold);
+  font-size: 13px;
+  font-weight: 700;
+}

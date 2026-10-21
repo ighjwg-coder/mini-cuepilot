@@ -13,11 +13,20 @@ export const TEMPLATE_DB = 'template.db';
 export const LEGACY_DIR_NAME = 'MiniCuePilot';
 export const LEGACY_DB_FILE = 'cuepilot.db';
 
-export const DEFAULT_CONFIG = `# CamCue(캠큐) 설정 — 수정 후 프로그램을 다시 시작하세요.
+export const DEFAULT_CONFIG = `# CamCue(캠큐) 설정
+# 장비 관련 값은 프로그램의 [장비 연결] 화면에서 바꾸는 것을 권장합니다 (저장 즉시 적용).
+# 이 파일을 직접 고친 경우에는 프로그램을 다시 시작하세요.
 
 # 서버 포트 (폰 접속 주소의 :38080 부분)
 # 이 포트를 쓸 수 없으면 자동으로 다른 포트를 골라 여기에 저장합니다.
 PORT=38080
+
+# 스위처 종류
+#   atem    : Blackmagic ATEM (아래 ATEM_HOST)
+#   ikegami : 이케가미 라우터 RS-422 (IKEGAMI_*)
+#   gpi     : GPI 모듈 접점 출력으로 컷 (GPI_*)
+#   none    : 스위처 제어 안 함 (큐 진행만)
+SWITCHER=atem
 
 # ATEM 스위처
 #   mock            : 가상 스위처 (장비 없이 연습)
@@ -27,6 +36,22 @@ ATEM_HOST=mock
 
 # 제어할 M/E 버스 번호 (대부분 1)
 # ATEM_ME=1
+
+# 이케가미 라우터 (RS-422, USB-RS422 변환기)
+# IKEGAMI_PORT=COM3
+# IKEGAMI_BAUD=38400
+# IKEGAMI_PARITY=odd
+# IKEGAMI_PGM_OUT=1
+# IKEGAMI_CAM_INPUTS=1,2,3,4,5,6,7,8
+# IKEGAMI_TAKE=
+
+# 탈리 기준: switcher (스위처 보고값) / gpi (GPI 모듈로 실제 탈리 신호를 읽음)
+# TALLY_SOURCE=switcher
+
+# GPI 입력/출력 모듈 (Modbus TCP — ADAM-6050, ioLogik E1210 등). mock = 가상 모듈
+# GPI_HOST=192.168.0.50
+# GPI_TALLY_INPUTS=1,2,3,4,5,6,7,8
+# GPI_TALLY_INVERT=0
 
 # (선택) HTTPS 인증서 — 폰 화면 꺼짐 방지(Wake Lock) 보장용
 # TLS_CERT=C:\\cert\\cert.pem

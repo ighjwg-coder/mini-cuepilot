@@ -6,6 +6,8 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { ZodError, type ZodType } from 'zod';
 import { commandSchema, formatZodError, parseImport, serviceInputSchema, toExportFile } from '../shared/schema';
 import { APP_VERSION } from '../shared/version';
+import type { DeviceManager } from './devices/manager';
+import { listSerialPorts } from './devices/serial';
 import { ConflictError, type ServiceRepo } from './repo';
 import type { ShowRuntime } from './runtime';
 import { attachWebSocket } from './ws';
@@ -13,6 +15,8 @@ import { attachWebSocket } from './ws';
 export interface AppDeps {
   repo: ServiceRepo;
   runtime: ShowRuntime;
+  /** 장비 연결 화면 API. 없으면 /api/devices 미제공 (테스트) */
+  devices?: DeviceManager;
   /** vite build 결과물 경로. 존재하면 정적 서빙 + SPA fallback */
   webDir?: string;
   /** true = 전체 요청 로그, { level } = 지정 수준 이상만 */
@@ -36,7 +40,7 @@ function parse<T>(schema: ZodType<T>, body: unknown): T {
   return r.data;
 }
 
-export async function buildApp({ repo, runtime, webDir, logger = false, https }: AppDeps): Promise<FastifyInstance> {
+export async function buildApp({ repo, runtime, devices, webDir, logger = false, https }: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger, bodyLimit: 5 * 1024 * 1024, ...(https ? { https } : {}) }) as unknown as FastifyInstance;
 
   app.setErrorHandler((err, _req, reply) => {
@@ -66,7 +70,7 @@ export async function buildApp({ repo, runtime, webDir, logger = false, https }:
     return { lanUrls };
   });
 
-  // ── 예배(큐시트) CRUD ──
+  // ── 행사(큐시트) CRUD ──
   app.get('/api/services', async () => repo.list());
 
   app.post('/api/services', async (req, reply) => {
@@ -76,27 +80,27 @@ export async function buildApp({ repo, runtime, webDir, logger = false, https }:
 
   app.get<{ Params: { id: string } }>('/api/services/:id', async (req) => {
     const service = await repo.get(req.params.id);
-    if (!service) throw new HttpError(404, '예배를 찾을 수 없습니다');
+    if (!service) throw new HttpError(404, '행사를 찾을 수 없습니다');
     return service;
   });
 
   app.put<{ Params: { id: string } }>('/api/services/:id', async (req) => {
     const input = parse(serviceInputSchema, req.body);
     const saved = await repo.save(req.params.id, input);
-    if (!saved) throw new HttpError(404, '예배를 찾을 수 없습니다');
+    if (!saved) throw new HttpError(404, '행사를 찾을 수 없습니다');
     runtime.updateService(saved);
     return saved;
   });
 
   app.delete<{ Params: { id: string } }>('/api/services/:id', async (req, reply) => {
-    if (!(await repo.remove(req.params.id))) throw new HttpError(404, '예배를 찾을 수 없습니다');
+    if (!(await repo.remove(req.params.id))) throw new HttpError(404, '행사를 찾을 수 없습니다');
     runtime.unloadIf(req.params.id);
     return reply.status(204).send();
   });
 
   app.get<{ Params: { id: string } }>('/api/services/:id/export', async (req, reply) => {
     const service = await repo.get(req.params.id);
-    if (!service) throw new HttpError(404, '예배를 찾을 수 없습니다');
+    if (!service) throw new HttpError(404, '행사를 찾을 수 없습니다');
     const name = `${service.date ?? 'service'}-${service.title}`.replace(/[^\p{L}\p{N}_-]+/gu, '_');
     return reply
       .header('content-disposition', `attachment; filename="service.json"; filename*=UTF-8''${encodeURIComponent(name)}.json`)
@@ -121,7 +125,7 @@ export async function buildApp({ repo, runtime, webDir, logger = false, https }:
     const { serviceId } = (req.body ?? {}) as { serviceId?: unknown };
     if (typeof serviceId !== 'string') throw new HttpError(400, 'serviceId 가 필요합니다');
     const service = await repo.get(serviceId);
-    if (!service) throw new HttpError(404, '예배를 찾을 수 없습니다');
+    if (!service) throw new HttpError(404, '행사를 찾을 수 없습니다');
     runtime.load(service);
     return runtime.snapshot();
   });
@@ -131,6 +135,9 @@ export async function buildApp({ repo, runtime, webDir, logger = false, https }:
     runtime.command(parse(commandSchema, req.body));
     return runtime.snapshot();
   });
+
+  // ── 장비 연결 (스위처 · GPI · RS-422 시험) ──
+  if (devices) registerDeviceRoutes(app, devices, runtime);
 
   // ── 웹 (운영 모드) ──
   if (webDir && existsSync(webDir)) {
@@ -142,4 +149,61 @@ export async function buildApp({ repo, runtime, webDir, logger = false, https }:
   }
 
   return app;
+}
+
+function registerDeviceRoutes(app: FastifyInstance, devices: DeviceManager, runtime: ShowRuntime) {
+  const body = (req: { body: unknown }) => (req.body ?? {}) as Record<string, unknown>;
+  const intField = (b: Record<string, unknown>, key: string, min: number, max: number) => {
+    const n = b[key];
+    if (typeof n !== 'number' || !Number.isInteger(n) || n < min || n > max) throw new HttpError(400, `${key}: ${min}~${max} 정수가 필요합니다`);
+    return n;
+  };
+  const wrap = async (fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
+      throw new HttpError(400, (err as Error).message);
+    }
+    return devices.snapshot(runtime.tally());
+  };
+
+  app.get('/api/devices', async () => devices.snapshot(runtime.tally()));
+
+  app.put('/api/devices/settings', async (req) => wrap(() => devices.apply(body(req) as Record<string, string>)));
+
+  app.get('/api/devices/serial-ports', async () => {
+    try {
+      return { ports: await listSerialPorts() };
+    } catch (err) {
+      throw new HttpError(500, `COM 포트 목록을 읽지 못했습니다: ${(err as Error).message}`);
+    }
+  });
+
+  app.get<{ Querystring: { after?: string } }>('/api/devices/serial-log', async (req) => ({
+    entries: devices.logAfter(Number(req.query.after) || 0),
+  }));
+
+  app.post('/api/devices/serial/send', async (req) => {
+    const hex = body(req).hex;
+    if (typeof hex !== 'string') throw new HttpError(400, 'hex 가 필요합니다');
+    return wrap(() => devices.sendSerial(hex));
+  });
+
+  app.post('/api/devices/test-take', async (req) => {
+    const camera = intField(body(req), 'camera', 1, 8);
+    return wrap(() => devices.testTake(camera));
+  });
+
+  app.post('/api/devices/gpi/pulse', async (req) => {
+    const channel = intField(body(req), 'channel', 1, 64);
+    return wrap(() => devices.pulse(channel));
+  });
+
+  app.post('/api/devices/gpi/mock-input', async (req) => {
+    const b = body(req);
+    const channel = intField(b, 'channel', 1, 64);
+    if (typeof b.on !== 'boolean') throw new HttpError(400, 'on: true/false 가 필요합니다');
+    return wrap(async () => devices.setMockInput(channel, b.on as boolean));
+  });
 }

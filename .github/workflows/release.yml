@@ -77,12 +77,25 @@ jobs:
             if (-not $health) { throw '서버가 시작되지 않았습니다' }
             if ($health.version -ne '${{ steps.ver.outputs.version }}') { throw "버전 불일치: $($health.version)" }
             $services = @(Invoke-RestMethod http://localhost:3456/api/services)
-            if ($services.Count -ne 1) { throw "샘플 예배 시드 실패 ($($services.Count))" }
+            if ($services.Count -ne 1) { throw "샘플 행사 시드 실패 ($($services.Count))" }
             $page = Invoke-WebRequest http://localhost:3456/cam/1 -UseBasicParsing
             if ($page.Content -notmatch 'CamCue') { throw '웹 UI 서빙 실패' }
             $go = Invoke-RestMethod -Method Post http://localhost:3456/api/show/command -ContentType 'application/json' -Body '{"command":"GO"}'
             if ($go.state.cueIndex -ne 0) { throw 'GO 실패' }
             if (-not (Test-Path (Join-Path $env:CAMCUE_DATA_DIR 'config.env'))) { throw 'config.env 미생성' }
+            # 장비 연결: serialport 네이티브 모듈 로드 (Windows 빌드) + 이케가미(가상 포트)·GPI(가상 모듈) 전환
+            $ports = Invoke-RestMethod http://127.0.0.1:3456/api/devices/serial-ports
+            Write-Host "COM 포트 $(@($ports.ports).Count)개"
+            $body = '{"SWITCHER":"ikegami","IKEGAMI_PORT":"mock","IKEGAMI_TAKE":"02 {OUT0} {IN0} {SUM}","GPI_HOST":"mock","TALLY_SOURCE":"gpi"}'
+            $dev = Invoke-RestMethod -Method Put http://127.0.0.1:3456/api/devices/settings -ContentType 'application/json; charset=utf-8' -Body $body
+            if ($dev.errors.Count -ne 0) { throw "장비 설정 오류: $($dev.errors -join ', ')" }
+            Start-Sleep -Milliseconds 300
+            $null = Invoke-RestMethod -Method Post http://127.0.0.1:3456/api/devices/test-take -ContentType 'application/json' -Body '{"camera":2}'
+            $log = Invoke-RestMethod 'http://127.0.0.1:3456/api/devices/serial-log?after=0'
+            if (-not (@($log.entries) | Where-Object { $_.dir -eq 'tx' -and $_.text -eq '02 00 01 03' })) { throw '이케가미 명령 전송 실패' }
+            $t = Invoke-RestMethod -Method Post http://127.0.0.1:3456/api/devices/gpi/mock-input -ContentType 'application/json' -Body '{"channel":4,"on":true}'
+            if ($t.tally.source -ne 'gpi' -or $t.tally.program -ne 4) { throw "GPI 탈리 실패: $($t.tally | ConvertTo-Json -Compress)" }
+            if ((Get-Content (Join-Path $env:CAMCUE_DATA_DIR 'config.env') -Raw) -notmatch 'SWITCHER=ikegami') { throw '장비 설정 저장 실패' }
             Write-Host "스모크 테스트 통과: v$($health.version)"
           } finally {
             Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue

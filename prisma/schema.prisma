@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// 예배 (한 번의 예배 = 하나의 큐시트)
+/// 행사 (한 번의 행사 = 하나의 큐시트)
 model Service {
   id        String   @id @default(uuid())
   title     String
@@ -17,7 +17,7 @@ model Service {
   acts      Act[]
 }
 
-/// 예배 순서 (찬양1, 대표기도, 설교 ...)
+/// 행사 순서 (오프닝 공연, 인사말, 메인 강연 ...)
 model Act {
   id          String  @id @default(uuid())
   serviceId   String
