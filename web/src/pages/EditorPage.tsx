@@ -9,6 +9,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { parseNote, setImportant } from '@shared/note';
 import { formatAtemAction, parseAtemAction, type AtemAction } from '@shared/atemAction';
 import { cueDurationMs, cueTimecodes } from '@shared/engine';
 import { defaultIdGen, ops } from '@shared/editorOps';
@@ -454,7 +455,10 @@ function CueBlock(props: {
         <b>{cue.shotSize}</b>
         <span className="muted mono">#{props.index + 1}</span>
       </div>
-      <div className="cue-note">{cue.note || <span className="muted">(메모 없음)</span>}</div>
+      <div className="cue-note">
+        {parseNote(cue.note).important && <span style={{ color: '#facc15' }}>⚠ </span>}
+        {parseNote(cue.note).text || <span className="muted">(메모 없음)</span>}
+      </div>
       <div className="cue-foot mono muted">
         {props.tcIn != null && <span>@{formatClock(props.tcIn * 1000)} </span>}
         {cue.bars != null && <span>{cue.bars}마디 </span>}
@@ -511,7 +515,22 @@ function CueInspector(props: {
       </Field>
 
       <Field label="메모 (카메라맨에게 보임)">
-        <textarea rows={2} value={cue.note} maxLength={500} onChange={(e) => set({ note: e.target.value })} />
+        <textarea
+          rows={2}
+          value={parseNote(cue.note).text}
+          maxLength={500}
+          onChange={(e) => set({ note: setImportant(e.target.value, parseNote(cue.note).important) })}
+        />
+        <label className="row" style={{ marginTop: 6, fontSize: 13, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={parseNote(cue.note).important}
+            onChange={(e) => set({ note: setImportant(cue.note, e.target.checked) })}
+          />
+          <span>
+            ⚠ <b>중요 메모</b> <span className="muted">— 카메라맨 화면에 노란색으로 강조</span>
+          </span>
+        </label>
       </Field>
 
       <Field label="섹션">
