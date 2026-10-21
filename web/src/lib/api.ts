@@ -18,6 +18,8 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 
 export interface ServerInfo {
   lanUrls: string[];
+  /** 안드로이드 앱 설치 파일 동봉 여부 */
+  apk: boolean;
 }
 
 export const api = {

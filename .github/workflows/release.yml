@@ -18,7 +18,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 안드로이드 앱 (카메라맨 폰용). Windows 배포판에 동봉 + Release 에 첨부
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.11.1
+
+      - name: APK 빌드
+        run: |
+          v=$(node -p "require('./package.json').version")
+          gradle -p android assembleRelease -PappVersion=$v --no-daemon --stacktrace
+          mkdir -p apk
+          cp android/app/build/outputs/apk/release/app-release.apk "apk/CamCue-Android-v$v.apk"
+          ls -la apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: apk/*.apk
+          retention-days: 14
+
   windows:
+    needs: android
     runs-on: windows-latest
     timeout-minutes: 40
     defaults:
@@ -57,8 +88,16 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: apk
+
       - name: 패키지 조립
-        run: node scripts/package.mjs
+        run: |
+          $apk = Get-ChildItem apk\*.apk | Select-Object -First 1
+          $env:CAMCUE_APK = $apk.FullName
+          node scripts/package.mjs
 
       - name: 스모크 테스트 (설치판 첫 실행 흐름)
         run: |
@@ -83,6 +122,19 @@ jobs:
             $go = Invoke-RestMethod -Method Post http://localhost:3456/api/show/command -ContentType 'application/json' -Body '{"command":"GO"}'
             if ($go.state.cueIndex -ne 0) { throw 'GO 실패' }
             if (-not (Test-Path (Join-Path $env:CAMCUE_DATA_DIR 'config.env'))) { throw 'config.env 미생성' }
+            # 폰 앱: 설치 파일 내려받기 + 자동 검색(UDP) 응답
+            $info = Invoke-RestMethod http://127.0.0.1:3456/api/info
+            if (-not $info.apk) { throw '앱 설치 파일(camcue.apk)이 동봉되지 않았습니다' }
+            $apkRes = Invoke-WebRequest http://127.0.0.1:3456/app -UseBasicParsing
+            if ($apkRes.Headers['Content-Type'] -notmatch 'android') { throw "APK 응답 형식 오류: $($apkRes.Headers['Content-Type'])" }
+            $udp = New-Object System.Net.Sockets.UdpClient
+            $udp.Client.ReceiveTimeout = 3000
+            $q = [Text.Encoding]::UTF8.GetBytes('CAMCUE_DISCOVER')
+            [void]$udp.Send($q, $q.Length, '127.0.0.1', 38089)
+            $ep = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Any, 0)
+            $reply = [Text.Encoding]::UTF8.GetString($udp.Receive([ref]$ep)) | ConvertFrom-Json
+            $udp.Close()
+            if ($reply.app -ne 'CamCue' -or $reply.port -ne 3456) { throw "자동 검색 응답 오류: $($reply | ConvertTo-Json -Compress)" }
             # 장비 연결: serialport 네이티브 모듈 로드 (Windows 빌드) + 이케가미(가상 포트)·GPI(가상 모듈) 전환
             $ports = Invoke-RestMethod http://127.0.0.1:3456/api/devices/serial-ports
             Write-Host "COM 포트 $(@($ports.ports).Count)개"
@@ -161,6 +213,7 @@ jobs:
           |---|---|
           | ``CamCue-Setup-v$v-win-x64.exe`` | **설치판 (권장)** — 시작 메뉴·바탕화면 바로가기, 방화벽 자동 허용 |
           | ``CamCue-portable-v$v-win-x64.zip`` | 포터블 — 압축 풀고 ``CamCue.cmd`` 실행 (관리자 권한 불필요) |
+          | ``CamCue-Android-v$v.apk`` | 카메라맨 폰 앱 (안드로이드 7 이상) — 캠큐 PC 홈 화면의 QR 로도 설치 가능 |
 
           - Windows 10/11 64bit. Node.js 설치 불필요 (내장)
           - 처음 실행 시 "Windows의 PC 보호" 창 → **추가 정보 → 실행** (코드 서명 미적용)
@@ -177,6 +230,7 @@ jobs:
           path: |
             release/*.zip
             release/*.exe
+            apk/*.apk
           retention-days: 14
 
       - name: GitHub Release 게시
@@ -192,3 +246,4 @@ jobs:
           files: |
             release/*.zip
             release/*.exe
+            apk/*.apk

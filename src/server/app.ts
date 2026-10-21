@@ -1,11 +1,11 @@
 // Fastify 앱 조립: REST API + WebSocket + (빌드된) 웹 정적 파일
-import { existsSync } from 'node:fs';
-import { networkInterfaces } from 'node:os';
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { hostname, networkInterfaces } from 'node:os';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { ZodError, type ZodType } from 'zod';
 import { commandSchema, formatZodError, parseImport, serviceInputSchema, toExportFile } from '../shared/schema';
-import { APP_VERSION } from '../shared/version';
+import { APP_NAME, APP_VERSION } from '../shared/version';
 import type { DeviceManager } from './devices/manager';
 import { listSerialPorts } from './devices/serial';
 import { ConflictError, type ServiceRepo } from './repo';
@@ -17,6 +17,8 @@ export interface AppDeps {
   runtime: ShowRuntime;
   /** 장비 연결 화면 API. 없으면 /api/devices 미제공 (테스트) */
   devices?: DeviceManager;
+  /** 안드로이드 앱 APK 경로. 파일이 있으면 /app 으로 내려받기 제공 */
+  apkPath?: string;
   /** vite build 결과물 경로. 존재하면 정적 서빙 + SPA fallback */
   webDir?: string;
   /** true = 전체 요청 로그, { level } = 지정 수준 이상만 */
@@ -40,7 +42,7 @@ function parse<T>(schema: ZodType<T>, body: unknown): T {
   return r.data;
 }
 
-export async function buildApp({ repo, runtime, devices, webDir, logger = false, https }: AppDeps): Promise<FastifyInstance> {
+export async function buildApp({ repo, runtime, devices, apkPath, webDir, logger = false, https }: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger, bodyLimit: 5 * 1024 * 1024, ...(https ? { https } : {}) }) as unknown as FastifyInstance;
 
   app.setErrorHandler((err, _req, reply) => {
@@ -57,7 +59,8 @@ export async function buildApp({ repo, runtime, devices, webDir, logger = false,
   app.addHook('onClose', async () => ws.close());
 
   // ── 상태 ──
-  app.get('/api/health', async () => ({ ok: true, version: APP_VERSION, wsClients: ws.clientCount() }));
+  // app/name: 폰 앱이 네트워크 스캔으로 CamCue 서버를 알아보는 데 사용
+  app.get('/api/health', async () => ({ ok: true, app: APP_NAME, name: hostname(), version: APP_VERSION, wsClients: ws.clientCount() }));
   app.get('/api/atem', async () => runtime.snapshot().atem);
 
   /** 폰 접속용 LAN 주소. 포트는 요청 Host 헤더 기준(개발 모드 Vite 5173 / 운영 38080 모두 대응) */
@@ -67,8 +70,21 @@ export async function buildApp({ repo, runtime, devices, webDir, logger = false,
       .flat()
       .filter((i) => i && i.family === 'IPv4' && !i.internal)
       .map((i) => `http://${i!.address}${port === '80' ? '' : `:${port}`}`);
-    return { lanUrls };
+    return { lanUrls, apk: apkAvailable() };
   });
+
+  // ── 안드로이드 앱 내려받기 ──
+  const apkAvailable = () => !!apkPath && existsSync(apkPath);
+  const sendApk = async (_req: unknown, reply: import('fastify').FastifyReply) => {
+    if (!apkAvailable()) throw new HttpError(404, '이 버전에는 안드로이드 앱 설치 파일이 들어 있지 않습니다');
+    return reply
+      .header('content-type', 'application/vnd.android.package-archive')
+      .header('content-length', statSync(apkPath!).size)
+      .header('content-disposition', `attachment; filename="CamCue-v${APP_VERSION}.apk"`)
+      .send(createReadStream(apkPath!));
+  };
+  app.get('/app', sendApk);
+  app.get('/app/camcue.apk', sendApk);
 
   // ── 행사(큐시트) CRUD ──
   app.get('/api/services', async () => repo.list());

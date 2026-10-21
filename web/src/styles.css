@@ -442,3 +442,33 @@ kbd {
   font-size: 13px;
   font-weight: 700;
 }
+
+.phone-connect {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.phone-connect > div {
+  background: var(--panel-2);
+  border-radius: 10px;
+  padding: 14px;
+}
+.phone-connect h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.phone-connect ol {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  line-height: 1.7;
+}
+.qr {
+  display: block;
+  width: 180px;
+  height: 180px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 6px;
+}

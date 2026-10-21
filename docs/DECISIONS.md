@@ -158,6 +158,21 @@
 - GitHub Actions CI(`.github/workflows/ci.yml`): `npm ci → typecheck → test → build`.
 - Node 20.12+ 요구 (`process.loadEnvFile`).
 
+## 14. 안드로이드 앱 · 자동 검색 (0.0.4~)
+
+| 항목 | 결정 | 이유 |
+|---|---|---|
+| 플랫폼 | 안드로이드만. 아이폰은 브라우저(홈 화면에 추가) | iOS 는 앱스토어 외 배포가 Mac·유료 계정·기기 등록/7일 만료 등으로 과원 배포에 비현실적 |
+| 앱 구조 | 네이티브(Kotlin) 껍데기 + WebView 로 서버의 `/cam/N` 표시 | CueScreen 을 한 곳(웹)에서만 관리 → 서버 업데이트가 앱에 바로 반영. 앱은 검색·화면 유지·진동·재접속만 |
+| 의존성 | AndroidX·라이브러리 없음 (Activity·WebView·org.json) | 빌드 단순·APK 소형·버전 충돌 없음 |
+| 서버 찾기 | ① UDP 브로드캐스트 `CAMCUE_DISCOVER` → 서버가 실제 포트 응답 ② 응답 없으면 /24 대역 `/api/health` 스캔 ③ IP 직접 입력 | 공유기에 따라 브로드캐스트가 막히는 경우 대비. 서버 포트 자동 변경과 무관하게 찾음 |
+| 웹 ↔ 앱 연결 | `window.CamCueApp` (vibrate, version). 앱이면 "탭해서 시작" 생략 | 웹 하나로 브라우저·앱 모두 지원 |
+| 화면 꺼짐 | `FLAG_KEEP_SCREEN_ON` | 브라우저 Wake Lock 은 HTTPS 필요 → LAN HTTP 에서 불확실했던 문제 해결 |
+| 설치 경로 | 배포판에 APK 동봉 → PC 의 `/app` + 홈 화면 QR, Releases 에도 첨부 | 현장에 인터넷이 없어도 설치 가능 |
+| 서명 키 | 저장소에 포함한 공개 키(`android/camcue-release.jks`) | 매 빌드 같은 키 → 덮어 설치(업데이트) 가능. 사내 배포 전제. 플레이 스토어 등록 시 비공개 키(GitHub Secrets)로 교체 필요 |
+| 빌드 | GitHub Actions(ubuntu) 에서 APK 빌드 → Windows 잡이 받아 동봉 | 개발 환경에 안드로이드 SDK 불필요 |
+| 버전 | `package.json` 버전을 그대로 versionName, versionCode = 주×10000+부×100+수 | 단일 버전 기준 유지 |
+
 ## 13. 이케가미 라우터 · GPI 연동 (0.0.3~)
 
 현장 장비: Ikegami **MUPS-FRM45** (45×36 라우팅 스위처, 매뉴얼 NN-8324276R) + K2E Tekpoint **TC-3200** 탈리 분배기 (라우터 GPI OUT → TC-3200).

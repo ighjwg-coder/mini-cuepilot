@@ -5,6 +5,7 @@
 //   app/dist/web/           ← 웹 UI (vite build)
 //   app/node_modules/       ← 런타임 의존성만 (+ 현재 OS 용 Prisma 엔진)
 //   app/template.db         ← 스키마만 있는 빈 SQLite (첫 실행 시 데이터 폴더로 복사)
+//   app/camcue.apk          ← 안드로이드 앱 (CAMCUE_APK 지정 시)
 //
 // 실행하는 OS 용으로 만들어진다. Windows 배포본은 GitHub Actions(windows-latest)에서 생성.
 // 사용: node scripts/package.mjs   (버전은 package.json 의 version 을 그대로 사용)
@@ -78,6 +79,14 @@ run('npx prisma db push --skip-generate', {
   env: { ...process.env, DATABASE_URL: `file:${templateDb.replace(/\\/g, '/')}` },
 });
 rmSync(`${templateDb}-journal`, { force: true });
+
+// 5-1) 안드로이드 앱 (CI 에서 빌드한 APK 경로를 CAMCUE_APK 로 전달) → 폰에서 http://PC:포트/app 으로 설치
+if (process.env.CAMCUE_APK) {
+  copyFileSync(process.env.CAMCUE_APK, join(app, 'camcue.apk'));
+  console.log(`[package] 안드로이드 앱 동봉: ${process.env.CAMCUE_APK}`);
+} else {
+  console.log('[package] CAMCUE_APK 없음 — 안드로이드 앱 미동봉');
+}
 
 // 6) Node 런타임 동봉
 mkdirSync(join(out, 'node'), { recursive: true });

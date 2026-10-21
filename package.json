@@ -1,6 +1,6 @@
 {
   "name": "camcue",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "description": "CamCue(캠큐) — 공연·컨퍼런스·행사 라이브 중계용 카메라 큐 진행 + ATEM 제어 + 카메라맨 폰 CueScreen",
   "type": "module",
@@ -43,6 +43,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@types/node": "^26.6.4",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/ws": "^8.18.2",
@@ -50,6 +51,7 @@
     "concurrently": "^10.0.5",
     "esbuild": "^0.28.2",
     "prisma": "^6.19.3",
+    "qrcode": "^1.5.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router-dom": "^7.18.4",
