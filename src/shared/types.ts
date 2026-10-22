@@ -6,9 +6,9 @@ export type ShotSize = (typeof SHOT_SIZES)[number];
 export const ADVANCE_MODES = ['MANUAL', 'SECTION', 'TIMECODE'] as const;
 export type AdvanceMode = (typeof ADVANCE_MODES)[number];
 
-/** 에디터에서 제안하는 섹션 프리셋. 값 자체는 대문자/숫자 1~8자면 허용한다. */
+/** 에디터에서 제안하는 섹션 프리셋. 값 자체는 영문 대문자로 시작하는 대문자·숫자·-·_ 1~12자면 허용 (예: INTRO-A, V2-DB) */
 export const SECTION_PRESETS = ['INTRO', 'V1', 'V2', 'V3', 'PRE', 'CH', 'BR', 'INST', 'TAG', 'OUTRO'] as const;
-export const SECTION_PATTERN = /^[A-Z][A-Z0-9]{0,7}$/;
+export const SECTION_PATTERN = /^[A-Z][A-Z0-9_-]{0,11}$/;
 
 export const MIN_CAMERA = 1;
 export const MAX_CAMERA = 8;
