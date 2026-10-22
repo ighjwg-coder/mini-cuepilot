@@ -552,7 +552,7 @@ function CueInspector(props: {
         <input
           placeholder="직접 입력 (예: CH2)"
           value={cue.section ?? ''}
-          onChange={(e) => set({ section: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) || null })}
+          onChange={(e) => set({ section: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 12) || null })}
           style={{ marginTop: 6, width: 160 }}
         />
       </Field>

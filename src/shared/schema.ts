@@ -14,7 +14,7 @@ export const cueInputSchema = z.object({
   section: z
     .string()
     .transform((s) => s.trim().toUpperCase())
-    .pipe(z.string().regex(SECTION_PATTERN, '섹션은 영문 대문자로 시작하는 1~8자'))
+    .pipe(z.string().regex(SECTION_PATTERN, '섹션은 영문 대문자로 시작하는 1~12자 (대문자·숫자·-·_)'))
     .nullable()
     .optional()
     .or(z.literal('').transform(() => null))
@@ -64,8 +64,9 @@ export const exportFileSchema = z.object({
 });
 
 export function parseImport(raw: unknown): ServiceInput {
-  const wrapped = exportFileSchema.safeParse(raw);
-  if (wrapped.success) return wrapped.data.service;
+  // 내보내기 형식(format + service)이면 그 형식으로만 검사해야 실제 문제 위치가 오류에 나온다
+  // (예전에는 실패 시 행사 객체 단독으로 다시 검사해 "title 없음" 이라는 엉뚱한 오류가 나왔음)
+  if (raw && typeof raw === 'object' && 'service' in raw) return exportFileSchema.parse(raw).service;
   return serviceInputSchema.parse(raw);
 }
 
