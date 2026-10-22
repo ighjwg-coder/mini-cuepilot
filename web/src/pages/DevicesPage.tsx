@@ -168,7 +168,13 @@ export function DevicesPage() {
               <CamChip n={snap.tally.program} /> <span className="dv-muted">다음</span> <CamChip n={snap.tally.preview} />
             </div>
             <div className="dv-status-sub">
-              {snap.tally.source === 'gpi' ? 'GPI 실제 신호 기준' : snap.tally.source === 'atem' ? '스위처 보고 기준' : '큐 진행 기준 (장비 미연결)'}
+              {snap.tally.source === 'gpi'
+                ? 'GPI 실제 신호 기준'
+                : snap.tally.source === 'atem'
+                  ? sw.mode === 'ikegami' || sw.mode === 'gpi'
+                    ? '캠큐가 보낸 전환 명령 기준 (패널 수동 컷은 반영 안 됨)'
+                    : '스위처 보고 기준'
+                  : '큐 진행 기준 (장비 미연결)'}
             </div>
           </div>
           {snap.errors.length > 0 && (
@@ -342,6 +348,11 @@ export function DevicesPage() {
             label="GPI 모듈로 실제 송출 신호 읽기"
             help="스위처의 탈리 접점을 읽어 폰 화면의 빨간 테두리를 실제 송출 기준으로 표시합니다. 패널에서 직접 컷해도 반영됩니다."
           />
+          {!tallyOn && kind === 'ikegami' && (
+            <p className="dv-hint">
+              꺼 두어도 됩니다. 이때 탈리는 <b>캠큐가 보낸 전환 명령</b> 기준으로 표시되고, 조작 패널에서 직접 컷한 것은 반영되지 않습니다. GPI 입력 모듈이 있을 때만 켜세요.
+            </p>
+          )}
 
           {needGpi && (
             <>
