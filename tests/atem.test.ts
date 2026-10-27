@@ -162,7 +162,9 @@ describe('ShowRuntime + Mock ATEM 통합', () => {
     expect(atem.log).toEqual([]); // 미연결 중 명령은 보내지 않음
     expect(runtime.tally()).toMatchObject({ program: 3, source: 'engine' });
     expect(runtime.snapshot().atem).toMatchObject({ connected: false, lastError: 'mock: 연결 끊김' });
-    expect(errors).toEqual([]);
+    // 보내지 못한 명령은 조용히 버리지 않고 기록
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.every((e) => e.startsWith('스위처 미연결'))).toBe(true);
   });
 
   it('ATEM 명령 실패는 로그만 남기고 다음 명령/진행은 계속', async () => {

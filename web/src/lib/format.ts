@@ -1,13 +1,14 @@
 import type { ShotSize } from '@shared/types';
 
+// 카메라 구분색. 빨강(ON AIR)·초록(PVW)·노랑·주황(다음 차례)은 탈리 색과 헷갈리므로 쓰지 않는다
 export const CAMERA_COLORS: Record<number, string> = {
   1: '#3b82f6',
-  2: '#22c55e',
-  3: '#eab308',
-  4: '#a855f7',
-  5: '#06b6d4',
-  6: '#f97316',
-  7: '#ec4899',
+  2: '#06b6d4',
+  3: '#a855f7',
+  4: '#ec4899',
+  5: '#e2e8f0',
+  6: '#818cf8',
+  7: '#f0abfc',
   8: '#94a3b8',
 };
 

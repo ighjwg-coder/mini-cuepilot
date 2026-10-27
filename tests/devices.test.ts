@@ -280,6 +280,28 @@ describe('Modbus TCP', () => {
     await gpi.disconnect();
     expect(gpi.status().connected).toBe(false);
   });
+
+  it('ModbusGpi: 켜진 채 남은 컷 출력은 연결되면 끈다', async () => {
+    state.coils[1] = true; // 이전 실행에서 끄지 못하고 남은 출력 (채널 2)
+    state.coils[6] = true; // 컷 출력이 아닌 채널은 건드리지 않음
+    const gpi = new ModbusGpi({
+      host: '127.0.0.1',
+      port,
+      unitId: 1,
+      diFunction: 2,
+      diAddress: 0,
+      diCount: 8,
+      doAddress: 0,
+      pollMs: 10,
+      resetOutputs: [1, 2],
+    });
+    await gpi.connect();
+    await until(() => gpi.status().connected);
+    expect(state.coils[1]).toBe(false);
+    expect(state.coils[6]).toBe(true);
+    await gpi.disconnect();
+    state.coils.fill(false);
+  });
 });
 
 // ─────────────────────────────────────────────

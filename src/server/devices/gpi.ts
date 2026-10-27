@@ -87,6 +87,8 @@ export interface ModbusGpiOptions {
   pollMs: number;
   /** 연결 실패 시 재시도 간격 */
   retryMs?: number;
+  /** 연결되면 먼저 꺼 둘 출력 채널(1부터) — 컷 출력이 켜진 채 남아 있으면 스위처가 다음 펄스를 못 받는다 */
+  resetOutputs?: number[];
 }
 
 export class ModbusGpi extends BaseGpi {
@@ -95,6 +97,8 @@ export class ModbusGpi extends BaseGpi {
   private lastError: string | null = null;
   private timer: NodeJS.Timeout | null = null;
   private running = false;
+  /** 꺼야 하는데 아직 못 끈 출력 채널 (통신이 끊겨 끄기가 실패한 경우 등) */
+  private readonly offPending = new Set<number>();
 
   constructor(private readonly opts: ModbusGpiOptions) {
     super();
@@ -115,6 +119,7 @@ export class ModbusGpi extends BaseGpi {
   async connect() {
     if (this.running) return;
     this.running = true;
+    for (const ch of this.opts.resetOutputs ?? []) if (ch > 0) this.offPending.add(ch);
     await this.loop();
   }
 
@@ -130,9 +135,34 @@ export class ModbusGpi extends BaseGpi {
   async pulse(channel: number, ms: number) {
     if (!this.client.connected) throw new Error('GPI 모듈 미연결');
     const addr = this.opts.doAddress + channel - 1;
+    // 켜기 명령이 나간 순간부터는 "꺼야 할 출력" — 끄기가 실패해도 다시 연결되면 끈다
+    this.offPending.add(channel);
     await this.client.writeCoil(addr, true);
     await new Promise((r) => setTimeout(r, ms));
-    await this.client.writeCoil(addr, false);
+    try {
+      await this.client.writeCoil(addr, false);
+    } catch {
+      // 한 번 더: 끊긴 연결을 다시 맺고 끄기
+      try {
+        await this.client.connect();
+        await this.client.writeCoil(addr, false);
+      } catch {
+        throw new Error(`출력 ${channel} 끄기 실패 — 모듈이 다시 연결되면 자동으로 끕니다`);
+      }
+    }
+    this.offPending.delete(channel);
+  }
+
+  /** 못 끈 출력 끄기. 연결 오류는 호출한 쪽(폴링)으로 넘기고, 장치가 거부한 채널(없는 주소 등)은 포기 */
+  private async flushOff() {
+    for (const ch of [...this.offPending]) {
+      try {
+        await this.client.writeCoil(this.opts.doAddress + ch - 1, false);
+      } catch (err) {
+        if (!(err as Error).message.startsWith('장치 오류 응답')) throw err;
+      }
+      this.offPending.delete(ch);
+    }
   }
 
   private async loop() {
@@ -140,6 +170,7 @@ export class ModbusGpi extends BaseGpi {
     let delay = this.opts.pollMs;
     try {
       await this.client.connect();
+      if (this.offPending.size) await this.flushOff();
       const bits = await this.client.readBits(this.opts.diFunction, this.opts.diAddress, this.opts.diCount);
       const changed = !this.inputs || this.lastError !== null || bits.some((b, i) => b !== this.inputs![i]);
       this.inputs = bits;

@@ -323,7 +323,7 @@ export function DevicesPage() {
             {kind === 'gpi' && (
               <>
                 <p className="dv-hint">
-                  GPI 모듈의 출력 접점을 장비의 GPI 입력에 연결하고, 장비 쪽에 "입력 N → 송출" 동작을 지정해 두세요. 모듈 주소는 아래 ③ 에서 설정합니다.
+                  GPI 모듈의 출력 접점을 장비의 GPI 입력에 연결하고, 장비 쪽에 "입력 N → 송출" 동작을 지정해 두세요 (이케가미: Setup → GPI → GPI-IN 에 카메라별 Button Memory). 모듈 주소는 아래 ③ 에서 설정합니다.
                 </p>
                 <Field label="카메라별 출력 채널" help="컷할 때 펄스를 보낼 모듈 출력(DO) 번호.">
                   <CamGrid value={form.GPI_CUT_OUTPUTS} prefix="DO" onChange={(v) => set({ GPI_CUT_OUTPUTS: v })} />
@@ -363,7 +363,7 @@ export function DevicesPage() {
                 help="아래 채널 버튼을 눌러 신호를 직접 켜고 끌 수 있습니다."
               />
               {form.GPI_HOST !== MOCK && (
-                <Field label="GPI 모듈 IP 주소" help="Modbus TCP 입력 모듈 (ADAM-6050, ioLogik E1210 등). 포트가 502 가 아니면 IP:포트.">
+                <Field label="GPI 모듈 IP 주소" help="Modbus TCP 입출력 모듈 (Waveshare Modbus POE ETH IO 8CH, ADAM-6050 등). 포트가 502 가 아니면 IP:포트. Waveshare 는 Vircom 에서 프로토콜을 Modbus TCP 로 바꿔 두세요.">
                   <input className="dv-input" value={form.GPI_HOST} onChange={(e) => set({ GPI_HOST: e.target.value })} placeholder="192.168.0.50" />
                 </Field>
               )}

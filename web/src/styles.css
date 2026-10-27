@@ -433,6 +433,22 @@ kbd {
   white-space: nowrap;
 }
 
+.switcher-down {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #7f1d1d;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  animation: switcher-down-pulse 1.4s ease-in-out infinite;
+}
+@keyframes switcher-down-pulse {
+  50% {
+    background: #991b1b;
+  }
+}
+
 .tally-mismatch {
   margin-bottom: 8px;
   padding: 6px 10px;

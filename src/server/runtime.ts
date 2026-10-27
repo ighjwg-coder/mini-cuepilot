@@ -191,7 +191,11 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
   /** ATEM 명령은 순서 보장을 위해 직렬 큐로 실행. 실패해도 쇼 진행은 계속된다 */
   private enqueueAtem(label: string, fn: () => Promise<void>) {
     this.atemQueue = this.atemQueue.then(async () => {
-      if (!this.opts.atem.status().connected) return;
+      const status = this.opts.atem.status();
+      if (!status.connected) {
+        if (status.mode !== 'disabled') this.opts.log(`스위처 미연결 — 명령을 보내지 못함: ${label}`);
+        return;
+      }
       try {
         await fn();
       } catch (err) {

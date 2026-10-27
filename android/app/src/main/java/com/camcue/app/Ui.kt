@@ -24,8 +24,9 @@ object Ui {
 
     /** 웹 화면(format.ts)과 같은 카메라 색 */
     val CAMERA_COLORS = mapOf(
-        1 to 0xFF3B82F6.toInt(), 2 to 0xFF22C55E.toInt(), 3 to 0xFFEAB308.toInt(), 4 to 0xFFA855F7.toInt(),
-        5 to 0xFF06B6D4.toInt(), 6 to 0xFFF97316.toInt(), 7 to 0xFFEC4899.toInt(), 8 to 0xFF94A3B8.toInt(),
+        // 웹과 같은 카메라 구분색 (탈리 색인 빨강·초록·노랑·주황 제외)
+        1 to 0xFF3B82F6.toInt(), 2 to 0xFF06B6D4.toInt(), 3 to 0xFFA855F7.toInt(), 4 to 0xFFEC4899.toInt(),
+        5 to 0xFFE2E8F0.toInt(), 6 to 0xFF818CF8.toInt(), 7 to 0xFFF0ABFC.toInt(), 8 to 0xFF94A3B8.toInt(),
     )
 
     fun dp(ctx: Context, v: Number): Int =
