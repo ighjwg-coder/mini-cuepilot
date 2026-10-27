@@ -488,3 +488,83 @@ kbd {
   padding: 8px;
   margin-bottom: 6px;
 }
+
+/* ───────── 디렉터 안전장치 ───────── */
+.director-alert {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #7f1d1d;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.director-hint {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--hold);
+  color: var(--hold);
+  font-weight: 700;
+}
+.go-skip {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #3b2a00;
+  color: #fde68a;
+  font-size: 13px;
+}
+.transport .go-target {
+  font-size: 0.75em;
+  opacity: 0.9;
+}
+.transport button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cue-only {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.cue-only.on {
+  color: var(--hold);
+}
+.cam-warn {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--hold);
+  border-radius: 8px;
+  color: var(--hold);
+  font-size: 13px;
+}
+.cam-chip.missing {
+  opacity: 0.3;
+}
+.cam-chip.dup {
+  outline: 2px solid #ef4444;
+  outline-offset: 1px;
+}
+.cmd-log {
+  margin-top: 10px;
+  font-size: 12px;
+}
+.cmd-log summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.cmd-log-row {
+  padding: 2px 0;
+}
+.cmd-log-row.failed,
+.cmd-log-row.skipped {
+  color: #fca5a5;
+}

@@ -120,15 +120,35 @@ git push --follow-tags   # → GitHub Actions 가 Windows 설치 파일을 만�
 - Act 경계는 항상 GO 로 넘어갑니다 (자동으로 다음 순서로 넘어가지 않음).
 - **HOLD**: 자동 진행·타이머 정지, 다시 누르면 남은 시간부터 재개. HOLD 중에도 GO/BACK 은 동작.
 - **BACK**: 직전 큐로 돌아가며 해당 카메라로 다시 전환.
+- **큐만 이동 (컷 없음)**: 디렉터 화면 체크박스 또는 `Shift`+더블클릭. 스위처를 건드리지 않고 큐 위치만 맞춤
+  (패널이 큐보다 앞서 나갔을 때, 위치를 되돌릴 때)
+- **GO 연타 방지**: GO·BACK 을 0.5초 안에 다시 누르면 무시 (`CAMCUE_GO_LOCK_MS`, 0 = 끔)
+- GO 버튼에 **실제로 갈 큐**(카메라·섹션)가 표시됩니다. SECTION 자동 구간에서는 다음 섹션 첫 큐로 건너뜀
+- 컷이 실패하거나 스위처 미연결로 못 보내면 디렉터 화면에 빨간 알림 + [스위처 명령 기록]
+- **진행 위치 자동 저장**: 캠큐가 재시작돼도 진행 중이던 행사·큐 위치로 컷 없이 돌아옵니다 (3시간 이내)
+- 이미 라이브 중인 행사의 [라이브로 열기] 는 진행 위치를 지우지 않습니다 (처음부터는 디렉터의 RESET)
 
 ### 디렉터 콘솔 단축키
 
 | 키 | 동작 |
 |---|---|
 | `Space` | GO |
-| `Backspace` | BACK |
+| `Shift`+`Backspace` | BACK (`Backspace` 만 누르면 안내만 — 실수 방지) |
 | `H` | HOLD / RESUME |
-| 런시트 더블클릭 | 해당 큐로 JUMP |
+| 런시트 더블클릭 | 해당 큐로 JUMP (+ 컷) |
+| 런시트 `Shift`+더블클릭 | 해당 큐로 컷 없이 이동 |
+
+### 제어 권한 (0.0.7~)
+
+GO·RESET·행사 편집·장비 설정은 **캠큐 PC 에서만** 됩니다. 카메라맨 화면(`/cam/N`)은 누구나 열 수 있습니다.
+다른 기기(노트북·태블릿·다른 PC 의 Companion)에서 제어하려면 `config.env` 에 PIN 을 정하고 다시 시작하세요.
+
+```
+CAMCUE_PIN=4821
+```
+
+다른 기기에서 디렉터 화면을 열면 [PIN 입력] 이 나오고, 한 번 입력하면 그 브라우저에 기억됩니다.
+HTTP 로 제어할 때는 `x-camcue-pin: 4821` 헤더를 붙입니다.
 
 ### 에디터 단축키
 
@@ -208,8 +228,9 @@ Bitfocus Companion 의 *Generic HTTP* 액션으로 GO 버튼을 만들 수 있�
 
 ```bash
 curl -X POST http://192.168.10.10:38080/api/show/command \
-  -H 'content-type: application/json' -d '{"command":"GO"}'
-# command: GO | BACK | HOLD | RESET | JUMP(+ actIndex, cueIndex)
+  -H 'content-type: application/json' -H 'x-camcue-pin: 4821' -d '{"command":"GO"}'
+# command: GO | BACK(+ silent) | HOLD | RESET | JUMP(+ actIndex, cueIndex, silent)
+# 캠큐 PC 에서 실행하는 Companion 은 PIN 이 필요 없습니다
 ```
 
 ### 3-6. 이케가미 라우터 · GPI 연결 (0.0.3~)
@@ -357,7 +378,7 @@ CueScreen 하단에 `화면 유지 ON` / `화면 유지 ON(호환)` / `화면 �
 }
 ```
 
-Cue 필드: `camera`(1~8), `shotSize`(WS/MS/CU/ECU), `note`, `durationSec?`, `section?`, `bars?`, `tcInSec?`, `atemAction`
+Cue 필드: `camera`(1~8), `shotSize`(LS/WS/FS/KS/MS/BS/CU/ECU/2S — WS = 와이드), `note`, `durationSec?`, `section?`, `bars?`, `tcInSec?`, `atemAction`
 
 ### 디렉터리 구조
 

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { MAX_CAMERA, MIN_CAMERA } from '../shared/types';
 import type { ClientRole, ConnectedClient, ServerMessage } from '../shared/protocol';
 import { commandSchema } from '../shared/schema';
+import { OPEN_ACCESS, type AccessPolicy } from './access';
 import type { ShowRuntime } from './runtime';
 
 const clientMessageSchema = z.discriminatedUnion('type', [
@@ -13,18 +14,20 @@ const clientMessageSchema = z.discriminatedUnion('type', [
     type: z.literal('hello'),
     role: z.enum(['director', 'cam', 'editor', 'viewer']),
     camera: z.number().int().min(MIN_CAMERA).max(MAX_CAMERA).optional(),
+    pin: z.string().max(64).optional(),
   }),
   z.object({ type: z.literal('ping'), t: z.number() }),
 ]);
 
 interface ClientInfo extends ConnectedClient {
   socket: WebSocket;
+  remote: string | undefined;
 }
 
 /** 명령(GO/BACK/HOLD...)을 보낼 수 있는 역할 */
 const COMMAND_ROLES: ReadonlySet<ClientRole> = new Set(['director']);
 
-export function attachWebSocket(server: Server, runtime: ShowRuntime) {
+export function attachWebSocket(server: Server, runtime: ShowRuntime, access: AccessPolicy = OPEN_ACCESS) {
   const wss = new WebSocketServer({ noServer: true });
   const clients = new Map<WebSocket, ClientInfo>();
   let seq = 0;
@@ -51,8 +54,8 @@ export function attachWebSocket(server: Server, runtime: ShowRuntime) {
   };
   server.on('upgrade', onUpgrade);
 
-  wss.on('connection', (socket) => {
-    const info: ClientInfo = { id: ++seq, role: 'viewer', camera: null, socket };
+  wss.on('connection', (socket, req: IncomingMessage) => {
+    const info: ClientInfo = { id: ++seq, role: 'viewer', camera: null, socket, remote: req.socket.remoteAddress };
     clients.set(socket, info);
     send(socket, { type: 'service', service: runtime.service });
     send(socket, { type: 'state', ...runtime.snapshot() });
@@ -78,8 +81,12 @@ export function attachWebSocket(server: Server, runtime: ShowRuntime) {
         return send(socket, { type: 'pong', t: msg.data.t, serverTime: Date.now() });
       }
       if (msg.data.type === 'hello') {
-        info.role = msg.data.role;
+        // 디렉터(진행 명령) 역할은 권한이 있을 때만. 없으면 보기 전용으로 붙인다
+        const wantsControl = COMMAND_ROLES.has(msg.data.role);
+        const allowed = !wantsControl || access.canControl(info.remote, msg.data.pin);
+        info.role = allowed ? msg.data.role : 'viewer';
         info.camera = msg.data.role === 'cam' ? (msg.data.camera ?? null) : null;
+        if (wantsControl) send(socket, { type: 'access', canControl: allowed, reason: allowed ? null : access.denyReason() });
         broadcastClients();
       }
     });

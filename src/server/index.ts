@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { networkInterfaces } from 'node:os';
-import { resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 import { APP_NAME, APP_VERSION } from '../shared/version';
@@ -11,7 +11,9 @@ import { buildApp } from './app';
 import { prepareDataDir, saveConfigPort, type DataDirResult } from './bootstrap';
 import { DeviceManager } from './devices/manager';
 import { DISCOVERY_PORT, discoveryInfo, startDiscoveryResponder, type DiscoveryResponder } from './discovery';
+import { preventSleep } from './keepAwake';
 import { DEFAULT_PORT, isCamCueRunning, listenWithFallback } from './listen';
+import { RESUME_POSITION_MS, createLiveStateWriter, readLiveState } from './liveState';
 import { ServiceRepo } from './repo';
 import { ShowRuntime } from './runtime';
 import { sampleServiceInput } from './sampleService';
@@ -50,13 +52,37 @@ const devices = new DeviceManager({
   log: (msg, err) => console.warn(`  [장비] ${msg}: ${(err as Error)?.message ?? err ?? ''}`),
 });
 const atem = devices.switcher;
-const runtime = new ShowRuntime({ atem, timecode: new SimulatedTimecodeSource(), tallyInput: devices.tallyInput });
+// GO·BACK 연타 방지 (기본 500ms, CAMCUE_GO_LOCK_MS=0 이면 끔)
+const stepLockMs = Number(process.env.CAMCUE_GO_LOCK_MS ?? 500);
+const runtime = new ShowRuntime({
+  atem,
+  timecode: new SimulatedTimecodeSource(),
+  tallyInput: devices.tallyInput,
+  stepLockMs: Number.isFinite(stepLockMs) && stepLockMs >= 0 ? stepLockMs : 500,
+});
 
 // 설치 후 첫 실행: 샘플 행사를 넣어 바로 둘러볼 수 있게 함
 if (dataDir?.freshDb) await repo.create(sampleServiceInput);
 
-runtime.load(await repo.latest());
+// 라이브 위치 복원: 재시작 전 라이브였던 행사를 다시 열고, 최근(3시간 이내)이면 그 큐 위치로 컷 없이 이어간다.
+// 저장된 것이 없으면 가장 최근에 수정한 행사
+const liveStatePath = join(dataDir ? dirname(dataDir.configPath) : resolve('.'), 'live-state.json');
+const savedLive = readLiveState(liveStatePath);
+const savedService = savedLive ? await repo.get(savedLive.serviceId) : null;
+let resumedAt: string | null = null;
+if (savedService && savedLive) {
+  const fresh = Date.now() - savedLive.savedAt < RESUME_POSITION_MS;
+  const pos = fresh ? savedLive.position : null;
+  const valid = pos && savedService.acts[pos.actIndex]?.cues[pos.cueIndex] ? pos : null;
+  runtime.load(savedService, valid);
+  if (valid) resumedAt = `${savedService.acts[valid.actIndex].title} #${valid.cueIndex + 1}`;
+} else {
+  runtime.load(await repo.latest());
+}
+const writeLive = createLiveStateWriter(liveStatePath);
+runtime.on('state', (s) => writeLive(s.serviceId, s.state.actIndex >= 0 ? { actIndex: s.state.actIndex, cueIndex: s.state.cueIndex } : null));
 runtime.start();
+const stopKeepAwake = preventSleep((m) => console.warn(`  [알림] ${m}`));
 
 const https =
   process.env.TLS_CERT && process.env.TLS_KEY
@@ -129,7 +155,10 @@ console.log(`
    스위처          : ${SWITCHER_LABEL[sw.mode]}${sw.host && sw.mode !== 'mock' ? ` (${sw.host})` : ''}${
      devices.config.tally.source === 'gpi' ? '\n   탈리 입력       : GPI 모듈 (' + (devices.config.gpi.kind === 'none' ? '미설정' : devices.config.gpi.host) + ')' : ''
    }
-   장비 연결 설정  : ${webUrl}/devices
+   장비 연결 설정  : ${webUrl}/devices${
+     resumedAt ? `\n   진행 위치 복원  : ${runtime.service?.title} · ${resumedAt} (컷 없이 이어서 시작)` : ''
+   }
+   다른 기기 제어  : ${process.env.CAMCUE_PIN?.trim() ? 'PIN 필요 (config.env CAMCUE_PIN)' : '이 PC 에서만 (다른 기기는 config.env 에 CAMCUE_PIN 지정)'}
    폰 앱 자동 검색 : ${discovery ? `켜짐 (UDP ${discovery.port})` : '꺼짐 — 앱에서 IP 직접 입력'}${existsSync(apkPath) ? `\n   폰 앱 설치      : ${lanUrls[0] ?? webUrl}/app` : ''}${
      dataDir
        ? `\n   설정 파일       : ${dataDir.configPath}\n   데이터          : ${dataDir.dbPath}${
@@ -139,7 +168,8 @@ console.log(`
    }
   ----------------------------------------------------------
    브라우저가 자동으로 열리지 않으면 위 주소를 직접 여세요.
-   이 창을 닫으면 프로그램이 종료됩니다.
+   ※ 이 창을 닫으면 프로그램이 종료됩니다 — 최소화해 두세요.
+   ※ 실행 중에는 PC 가 절전으로 들어가지 않습니다.
   ==========================================================
 `);
 
@@ -161,6 +191,7 @@ function openBrowser(url: string) {
 }
 
 const shutdown = async () => {
+  stopKeepAwake();
   runtime.stop();
   await devices.stop().catch(() => {});
   await discovery?.close().catch(() => {});

@@ -41,19 +41,36 @@ export function TimecodeBadge({ snapshot }: { snapshot: ShowSnapshot | null }) {
   );
 }
 
-export function CamClients({ clients }: { clients: ConnectedClient[] }) {
-  const cams = [...new Set(clients.filter((c) => c.role === 'cam' && c.camera).map((c) => c.camera!))].sort((a, b) => a - b);
+/** 카메라 번호 → 접속한 CueScreen 수 */
+export function camCounts(clients: ConnectedClient[]): Map<number, number> {
+  const m = new Map<number, number>();
+  for (const c of clients) if (c.role === 'cam' && c.camera) m.set(c.camera, (m.get(c.camera) ?? 0) + 1);
+  return m;
+}
+
+/** 접속 중인 CueScreen. 같은 번호가 2대 이상이면 ×2 경고, expected 중 접속 안 한 번호는 흐리게 */
+export function CamClients({ clients, expected = [] }: { clients: ConnectedClient[]; expected?: number[] }) {
+  const counts = camCounts(clients);
+  const cams = [...new Set([...counts.keys(), ...expected])].sort((a, b) => a - b);
   return (
-    <span className="badge" title="접속 중인 CueScreen">
+    <span className="badge" title="접속 중인 CueScreen (흐린 번호 = 접속 안 함, ×2 = 같은 번호 화면이 여러 대)">
       📱
       {cams.length === 0 ? (
         <span className="muted">CueScreen 없음</span>
       ) : (
-        cams.map((n) => (
-          <span key={n} className="cam-chip" style={{ background: cameraColor(n) }}>
-            {n}
-          </span>
-        ))
+        cams.map((n) => {
+          const k = counts.get(n) ?? 0;
+          return (
+            <span
+              key={n}
+              className={`cam-chip ${k === 0 ? 'missing' : ''} ${k > 1 ? 'dup' : ''}`}
+              style={{ background: cameraColor(n) }}
+            >
+              {n}
+              {k > 1 && `×${k}`}
+            </span>
+          );
+        })
       )}
     </span>
   );

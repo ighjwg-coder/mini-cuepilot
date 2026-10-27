@@ -8,3 +8,5 @@ coverage/
 .DS_Store
 certs/
 release/
+live-state.json
+live-state.json.tmp

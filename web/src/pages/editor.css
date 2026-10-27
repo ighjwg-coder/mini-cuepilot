@@ -213,3 +213,38 @@
     border-top: 1px solid var(--border);
   }
 }
+
+/* 현재 스위처에서 그대로 실행되지 않는 큐 */
+.cue-problem {
+  margin-left: auto;
+  color: #f87171;
+  font-weight: 900;
+}
+.inspector-warn {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid #f87171;
+  border-radius: 8px;
+  color: #fca5a5;
+  font-size: 13px;
+}
+.seg button.no-output {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+.modal-back {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.modal {
+  width: min(720px, calc(100vw - 32px));
+  background: var(--panel, #161b22);
+  border: 1px solid var(--border, #30363d);
+  border-radius: 12px;
+  padding: 16px;
+}

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClientRole, ConnectedClient, ServerMessage, ShowCommand, ShowSnapshot } from '@shared/protocol';
 import type { Service } from '@shared/types';
+import { getPin } from './pin';
 
 export interface ShowConnection {
   connected: boolean;
@@ -10,8 +11,11 @@ export interface ShowConnection {
   clients: ConnectedClient[];
   /** 서버 기준 현재 시각(ms) */
   serverNow: () => number;
-  command: (cmd: ShowCommand) => void;
+  /** 보냈으면 true (연결이 끊겨 있으면 false — 버려짐) */
+  command: (cmd: ShowCommand) => boolean;
   lastError: string | null;
+  /** 디렉터 연결의 제어 권한 (hello 응답). 아직 모르면 null */
+  access: { canControl: boolean; reason: string | null } | null;
 }
 
 /** 서버 응답 확인 주기 */
@@ -19,12 +23,14 @@ const PING_MS = 2000;
 /** 이 시간 동안 서버에서 아무 것도 못 받으면 끊긴 것으로 본다 */
 const STALE_MS = 5000;
 
-export function useShow(role: ClientRole, camera?: number): ShowConnection {
+/** reconnectKey 가 바뀌면 다시 접속 (PIN 입력 후 등) */
+export function useShow(role: ClientRole, camera?: number, reconnectKey = 0): ShowConnection {
   const [connected, setConnected] = useState(false);
   const [service, setService] = useState<Service | null>(null);
   const [snapshot, setSnapshot] = useState<ShowSnapshot | null>(null);
   const [clients, setClients] = useState<ConnectedClient[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [access, setAccess] = useState<ShowConnection['access']>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const offsetRef = useRef({ offset: 0, rtt: Infinity });
 
@@ -71,7 +77,7 @@ export function useShow(role: ClientRole, camera?: number): ShowConnection {
         retry = 0;
         lastRx = Date.now();
         setConnected(true);
-        ws.send(JSON.stringify({ type: 'hello', role, camera }));
+        ws.send(JSON.stringify({ type: 'hello', role, camera, pin: role === 'director' ? getPin() : undefined }));
         offsetRef.current.rtt = Infinity; // 재접속 시 다시 측정
         ping();
         pingTimer = setInterval(ping, PING_MS);
@@ -106,6 +112,9 @@ export function useShow(role: ClientRole, camera?: number): ShowConnection {
           }
           case 'error':
             setLastError(msg.message);
+            break;
+          case 'access':
+            setAccess({ canControl: msg.canControl, reason: msg.reason });
             break;
         }
       };
@@ -142,15 +151,17 @@ export function useShow(role: ClientRole, camera?: number): ShowConnection {
         ws.close();
       }
     };
-  }, [role, camera]);
+  }, [role, camera, reconnectKey]);
 
   const serverNow = useCallback(() => Date.now() + offsetRef.current.offset, []);
   const command = useCallback((cmd: ShowCommand) => {
     const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'command', ...cmd }));
+    if (ws?.readyState !== WebSocket.OPEN) return false;
+    ws.send(JSON.stringify({ type: 'command', ...cmd }));
+    return true;
   }, []);
 
-  return { connected, service, snapshot, clients, serverNow, command, lastError };
+  return { connected, service, snapshot, clients, serverNow, command, lastError, access };
 }
 
 /** 주기적으로 리렌더링해 카운트다운 갱신 */

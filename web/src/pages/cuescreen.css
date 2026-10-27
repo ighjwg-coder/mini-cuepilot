@@ -451,3 +451,21 @@
   color: #fff;
   font-weight: 700;
 }
+
+/* 추정 ON AIR (캠큐 명령 기준·스위처 끊김): 실측 탈리와 구별되게 점선 테두리 + 어두운 빨강, 깜빡임 없음 */
+.cs-onair-est {
+  background: #120000;
+}
+.cs-onair-est .cs-tally {
+  border-style: dashed;
+  box-shadow: none;
+}
+.cs-onair-est .cs-band {
+  background: #4a0a0a;
+  border-style: dashed;
+  animation: none;
+}
+.cs-dup {
+  background: #ef4444;
+  color: #fff;
+}

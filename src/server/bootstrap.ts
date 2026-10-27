@@ -53,6 +53,13 @@ ATEM_HOST=mock
 # GPI_TALLY_INPUTS=1,2,3,4,5,6,7,8
 # GPI_TALLY_INVERT=0
 
+# 다른 기기(노트북·태블릿)에서 GO·편집·장비 설정을 하려면 PIN 을 정하세요.
+# 비워 두면 제어는 이 PC 에서만 됩니다. 카메라맨 폰 화면(/cam/N)은 PIN 없이 열립니다.
+# CAMCUE_PIN=
+
+# GO·BACK 연타 방지 시간(ms). 0 = 끔
+# CAMCUE_GO_LOCK_MS=500
+
 # (선택) HTTPS 인증서 — 폰 화면 꺼짐 방지(Wake Lock) 보장용
 # TLS_CERT=C:\\cert\\cert.pem
 # TLS_KEY=C:\\cert\\key.pem

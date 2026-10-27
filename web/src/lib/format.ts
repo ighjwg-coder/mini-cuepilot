@@ -15,10 +15,15 @@ export const CAMERA_COLORS: Record<number, string> = {
 export const cameraColor = (n: number) => CAMERA_COLORS[n] ?? '#94a3b8';
 
 export const SHOT_LABEL: Record<ShotSize, string> = {
+  LS: '롱샷 (전경)',
   WS: '와이드',
-  MS: '미디엄',
-  CU: '클로즈업',
+  FS: '풀샷 (전신)',
+  KS: '니샷 (무릎 위)',
+  MS: '미디엄 (허리 위)',
+  BS: '바스트 (가슴 위)',
+  CU: '클로즈업 (얼굴)',
   ECU: '익스트림 CU',
+  '2S': '투샷 (두 사람)',
 };
 
 export const MODE_LABEL = { MANUAL: '수동', SECTION: '섹션', TIMECODE: '타임코드' } as const;

@@ -16,7 +16,8 @@ import { defaultIdGen, ops } from '@shared/editorOps';
 import { formatZodError, serviceInputSchema } from '@shared/schema';
 import { ADVANCE_MODES, MAX_CAMERA, SECTION_PRESETS, SHOT_SIZES, type Act, type Cue, type Service, type ServiceSummary } from '@shared/types';
 import { TopBar } from '../components/TopBar';
-import { api } from '../lib/api';
+import type { SwitcherCaps } from '@shared/protocol';
+import { ApiError, api, openLive } from '../lib/api';
 import { MODE_LABEL, SHOT_LABEL, cameraColor, formatClock } from '../lib/format';
 import { useShow } from '../lib/useShow';
 import './editor.css';
@@ -36,6 +37,22 @@ const SECTION_COLORS: Record<string, string> = {
   OUTRO: '#0ea5e9',
 };
 const sectionColor = (s: string) => SECTION_COLORS[s] ?? SECTION_COLORS[s.replace(/\d+$/, '')] ?? '#6b7280';
+
+/** 되돌리기 기록 최대 수 */
+const HISTORY_LIMIT = 100;
+/** 같은 칸을 이 시간(ms) 안에 이어서 고치면 되돌리기 한 번으로 묶는다 (글자 하나씩 되돌리지 않도록) */
+const COALESCE_MS = 1000;
+
+/** 현재 스위처에서 이 큐가 적힌 대로 실행되지 않는 이유. 문제없으면 null */
+export function cueProblem(cue: Cue, caps: SwitcherCaps | undefined): string | null {
+  if (!caps) return null;
+  if (caps.cameras && !caps.cameras.includes(cue.camera)) return `CAM ${cue.camera} 은(는) 현재 스위처 설정에 컷 출력이 없습니다 — GO 해도 컷이 나가지 않음`;
+  const a = parseAtemAction(cue.atemAction);
+  if (a?.kind === 'auto' && !caps.transition) return 'AUTO(트랜지션)를 지원하지 않는 스위처 — 하드 컷으로 나갑니다';
+  if (a?.kind === 'macro' && !caps.macro) return '매크로를 지원하지 않는 스위처 — 컷만 나가고 매크로는 실패';
+  if (a?.kind === 'dsk' && !caps.dsk) return 'DSK 를 지원하지 않는 스위처 — 컷만 나가고 DSK 는 실패';
+  return null;
+}
 
 const isTyping = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
@@ -84,7 +101,37 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
   const [pxPerSec, setPxPerSec] = useState(8);
   const [message, setMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [past, setPast] = useState<Service[]>([]);
+  const [future, setFuture] = useState<Service[]>([]);
+  const [importingActs, setImportingActs] = useState(false);
+  const lastChange = useRef<{ key: string; at: number } | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
+  const caps = live.snapshot?.switcherCaps;
+
+  /** 편집 반영 + 되돌리기 기록. key 가 같고 1초 안이면 직전 기록에 합침 (글자 입력) */
+  const change = (next: Service, key?: string) => {
+    if (!doc) return;
+    const t = Date.now();
+    const merge = key && lastChange.current?.key === key && t - lastChange.current.at < COALESCE_MS;
+    if (!merge) setPast((p) => [...p.slice(-(HISTORY_LIMIT - 1)), doc]);
+    lastChange.current = key ? { key, at: t } : null;
+    setFuture([]);
+    setDoc(next);
+  };
+  const undo = () => {
+    if (!doc || past.length === 0) return;
+    setFuture((f) => [doc, ...f].slice(0, HISTORY_LIMIT));
+    setDoc(past[past.length - 1]);
+    setPast((p) => p.slice(0, -1));
+    lastChange.current = null;
+  };
+  const redo = () => {
+    if (!doc || future.length === 0) return;
+    setPast((p) => [...p, doc].slice(-HISTORY_LIMIT));
+    setDoc(future[0]);
+    setFuture((f) => f.slice(1));
+    lastChange.current = null;
+  };
 
   useEffect(() => {
     api
@@ -112,7 +159,24 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
     if (!parsed.success) return setMessage({ kind: 'err', text: formatZodError(parsed.error) });
     setSaving(true);
     try {
-      const s = await api.saveService(serviceId, doc);
+      let s: Service;
+      try {
+        s = await api.saveService(serviceId, doc, saved?.updatedAt);
+      } catch (e) {
+        if (!(e instanceof ApiError && e.status === 409)) throw e;
+        // 그 사이 다른 PC·탭에서 먼저 저장함
+        if (confirm(`${e.message}\n\n[확인] 내 내용으로 덮어쓰기\n[취소] 최신 내용 불러오기 (지금 고친 내용은 버림)`)) {
+          s = await api.saveService(serviceId, doc);
+        } else {
+          s = await api.getService(serviceId);
+          setPast([]);
+          setFuture([]);
+          setDoc(s);
+          setSaved(s);
+          setMessage({ kind: 'ok', text: '최신 내용을 불러왔습니다' });
+          return;
+        }
+      }
       setDoc(s);
       setSaved(s);
       setMessage({ kind: 'ok', text: isLive ? '저장됨 — 라이브에 즉시 반영' : '저장됨' });
@@ -121,7 +185,7 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
     } finally {
       setSaving(false);
     }
-  }, [doc, serviceId, isLive]);
+  }, [doc, saved, serviceId, isLive]);
 
   // 선택 위치 계산
   const pos = useMemo(() => {
@@ -139,23 +203,36 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
         save();
         return;
       }
+      // 되돌리기 (입력 칸 안에서는 브라우저 기본 되돌리기)
+      if ((e.ctrlKey || e.metaKey) && !isTyping(e.target)) {
+        const k = e.key.toLowerCase();
+        if (k === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          return undo();
+        }
+        if ((k === 'z' && e.shiftKey) || k === 'y') {
+          e.preventDefault();
+          return redo();
+        }
+      }
       if (!doc || !pos || isTyping(e.target)) return;
       if (e.key === 'Delete') {
-        setDoc(ops.deleteCue(doc, pos.a, pos.c));
+        change(ops.deleteCue(doc, pos.a, pos.c));
         setSel(null);
+        setMessage({ kind: 'ok', text: '큐를 삭제했습니다 — Ctrl+Z 로 되돌리기' });
       } else if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
         e.preventDefault();
-        setDoc(ops.moveCue(doc, pos.a, pos.c, pos.c + (e.key === 'ArrowLeft' ? -1 : 1)));
+        change(ops.moveCue(doc, pos.a, pos.c, pos.c + (e.key === 'ArrowLeft' ? -1 : 1)));
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         const next = ops.duplicateCue(doc, pos.a, pos.c, defaultIdGen);
-        setDoc(next);
+        change(next);
         setSel({ actId: sel!.actId, cueId: next.acts[pos.a].cues[pos.c + 1].id });
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [doc, pos, sel, save]);
+  });
 
   const importJson = async (file: File) => {
     try {
@@ -175,8 +252,11 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
 
   const goLive = async () => {
     if (dirty && !confirm('저장하지 않은 변경이 있습니다. 저장된 버전으로 라이브를 열까요?')) return;
-    await api.loadShow(serviceId);
-    navigate('/director');
+    try {
+      if (await openLive(serviceId)) navigate('/director');
+    } catch (e) {
+      setMessage({ kind: 'err', text: (e as Error).message });
+    }
   };
 
   if (!doc) {
@@ -190,6 +270,7 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
     );
   }
 
+  const problems = doc.acts.flatMap((a) => a.cues.filter((c) => cueProblem(c, caps)));
   const liveCueId = isLive && live.service ? live.service.acts[live.snapshot!.state.actIndex]?.cues[live.snapshot!.state.cueIndex]?.id : undefined;
 
   return (
@@ -197,13 +278,24 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
       <TopBar>
         {isLive && <span className="badge" style={{ borderColor: 'var(--pgm)', color: '#fca5a5' }}>● 라이브 중인 행사</span>}
         {dirty && <span className="badge" style={{ borderColor: 'var(--hold)' }}>저장 안 됨</span>}
+        {problems.length > 0 && (
+          <span className="badge" style={{ borderColor: 'var(--pgm)', color: '#fca5a5' }} title="큐 블록의 ⚠ 표시를 눌러 확인">
+            ⚠ 현재 스위처에서 그대로 실행되지 않는 큐 {problems.length}개
+          </span>
+        )}
       </TopBar>
 
       <div className="editor-toolbar">
-        <input className="title-input" value={doc.title} onChange={(e) => setDoc(ops.updateService(doc, { title: e.target.value }))} />
-        <input type="date" value={doc.date ?? ''} onChange={(e) => setDoc(ops.updateService(doc, { date: e.target.value || null }))} />
+        <input className="title-input" value={doc.title} onChange={(e) => change(ops.updateService(doc, { title: e.target.value }), 'title')} />
+        <input type="date" value={doc.date ?? ''} onChange={(e) => change(ops.updateService(doc, { date: e.target.value || null }))} />
         <button className="primary" onClick={save} disabled={!dirty || saving} title="Ctrl+S">
           {saving ? '저장 중…' : '저장'}
+        </button>
+        <button onClick={undo} disabled={past.length === 0} title="되돌리기 (Ctrl+Z)">
+          ↶
+        </button>
+        <button onClick={redo} disabled={future.length === 0} title="다시 하기 (Ctrl+Shift+Z / Ctrl+Y)">
+          ↷
         </button>
         <span className="spacer" />
         <label className="row muted" title="타임라인 확대/축소">
@@ -215,6 +307,9 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
             JSON 내보내기
           </button>
         </a>
+        <button onClick={() => setImportingActs(true)} title="다른 행사의 순서(찬양 곡 등)를 큐째로 복사해 와서 끝에 붙입니다">
+          다른 행사에서 순서 가져오기
+        </button>
         <button onClick={() => importRef.current?.click()}>JSON 가져오기</button>
         <input
           ref={importRef}
@@ -232,6 +327,17 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
           삭제
         </button>
       </div>
+      {importingActs && (
+        <ActImporter
+          currentId={serviceId}
+          onClose={() => setImportingActs(false)}
+          onImport={(acts) => {
+            change({ ...doc, acts: [...doc.acts, ...acts] });
+            setImportingActs(false);
+            setMessage({ kind: 'ok', text: `순서 ${acts.length}개를 끝에 붙였습니다 (저장해야 반영)` });
+          }}
+        />
+      )}
       {message && (
         <div className={`editor-msg ${message.kind}`} onClick={() => setMessage(null)}>
           {message.text}
@@ -249,23 +355,24 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
               pxPerSec={pxPerSec}
               selectedCueId={sel?.actId === act.id ? sel.cueId : undefined}
               liveCueId={liveCueId}
+              caps={caps}
               onSelect={(cueId) => setSel({ actId: act.id, cueId })}
-              onChange={(patch) => setDoc(ops.updateAct(doc, a, patch))}
-              onMove={(to) => setDoc(ops.moveAct(doc, a, to))}
+              onChange={(patch) => change(ops.updateAct(doc, a, patch), `act:${act.id}:${Object.keys(patch).join()}`)}
+              onMove={(to) => change(ops.moveAct(doc, a, to))}
               onDelete={() => {
                 if (act.cues.length === 0 || confirm(`"${act.title}" 순서와 큐 ${act.cues.length}개를 삭제할까요?`)) {
-                  setDoc(ops.deleteAct(doc, a));
+                  change(ops.deleteAct(doc, a));
                 }
               }}
               onAddCue={() => {
                 const next = ops.addCue(doc, a, defaultIdGen);
-                setDoc(next);
+                change(next);
                 setSel({ actId: act.id, cueId: next.acts[a].cues.at(-1)!.id });
               }}
-              onReorder={(from, to) => setDoc(ops.moveCue(doc, a, from, to))}
+              onReorder={(from, to) => change(ops.moveCue(doc, a, from, to))}
             />
           ))}
-          <button className="add-act" onClick={() => setDoc(ops.addAct(doc, defaultIdGen))}>
+          <button className="add-act" onClick={() => change(ops.addAct(doc, defaultIdGen))}>
             + 순서(Act) 추가
           </button>
         </div>
@@ -277,18 +384,19 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
               service={doc}
               actIndex={pos.a}
               cueIndex={pos.c}
-              onChange={(patch) => setDoc(ops.updateCue(doc, pos.a, pos.c, patch))}
+              caps={caps}
+              onChange={(patch) => change(ops.updateCue(doc, pos.a, pos.c, patch), `cue:${sel!.cueId}:${Object.keys(patch).join()}`)}
               onMoveToAct={(to) => {
-                setDoc(ops.moveCueToAct(doc, pos.a, pos.c, to));
+                change(ops.moveCueToAct(doc, pos.a, pos.c, to));
                 setSel({ actId: doc.acts[to].id, cueId: sel!.cueId });
               }}
               onDuplicate={() => {
                 const next = ops.duplicateCue(doc, pos.a, pos.c, defaultIdGen);
-                setDoc(next);
+                change(next);
                 setSel({ actId: sel!.actId, cueId: next.acts[pos.a].cues[pos.c + 1].id });
               }}
               onDelete={() => {
-                setDoc(ops.deleteCue(doc, pos.a, pos.c));
+                change(ops.deleteCue(doc, pos.a, pos.c));
                 setSel(null);
               }}
             />
@@ -320,6 +428,7 @@ function ActLane(props: {
   pxPerSec: number;
   selectedCueId?: string;
   liveCueId?: string;
+  caps?: SwitcherCaps;
   onSelect: (cueId: string) => void;
   onChange: (patch: Partial<Omit<Act, 'id' | 'cues'>>) => void;
   onMove: (to: number) => void;
@@ -404,6 +513,7 @@ function ActLane(props: {
                 width={durations[i] != null ? Math.max(MIN_WIDTH, (durations[i]! / 1000) * pxPerSec) : UNKNOWN_WIDTH}
                 selected={props.selectedCueId === cue.id}
                 live={props.liveCueId === cue.id}
+                problem={cueProblem(cue, props.caps)}
                 onSelect={() => props.onSelect(cue.id)}
               />
             ))}
@@ -426,6 +536,7 @@ function CueBlock(props: {
   width: number;
   selected: boolean;
   live: boolean;
+  problem: string | null;
   onSelect: () => void;
 }) {
   const { cue } = props;
@@ -454,6 +565,11 @@ function CueBlock(props: {
         </span>
         <b>{cue.shotSize}</b>
         <span className="muted mono">#{props.index + 1}</span>
+        {props.problem && (
+          <span className="cue-problem" title={props.problem}>
+            ⚠
+          </span>
+        )}
       </div>
       <div className="cue-note">
         {parseNote(cue.note).important && <span style={{ color: '#facc15' }}>⚠ </span>}
@@ -473,6 +589,7 @@ function CueInspector(props: {
   service: Service;
   actIndex: number;
   cueIndex: number;
+  caps?: SwitcherCaps;
   onChange: (patch: Partial<Omit<Cue, 'id'>>) => void;
   onMoveToAct: (to: number) => void;
   onDuplicate: () => void;
@@ -482,20 +599,24 @@ function CueInspector(props: {
   const cue = act.cues[props.cueIndex];
   const set = props.onChange;
   const dur = cueDurationMs(act, props.cueIndex);
+  const problem = cueProblem(cue, props.caps);
+  const camOk = (n: number) => !props.caps?.cameras || props.caps.cameras.includes(n);
 
   return (
     <div className="inspector-form">
       <h3>
         큐 #{props.cueIndex + 1} <span className="muted">· {act.title}</span>
       </h3>
+      {problem && <div className="inspector-warn">⚠ {problem}</div>}
 
       <Field label="카메라">
         <div className="seg">
           {CAMERAS.map((n) => (
             <button
               key={n}
-              className={cue.camera === n ? 'on' : ''}
+              className={`${cue.camera === n ? 'on' : ''} ${camOk(n) ? '' : 'no-output'}`}
               style={cue.camera === n ? { background: cameraColor(n), borderColor: cameraColor(n), color: '#000' } : { color: cameraColor(n) }}
+              title={camOk(n) ? undefined : '현재 스위처 설정에 이 카메라의 컷 출력이 없습니다'}
               onClick={() => set({ camera: n })}
             >
               {n}
@@ -505,7 +626,7 @@ function CueInspector(props: {
       </Field>
 
       <Field label="샷 사이즈">
-        <div className="seg">
+        <div className="seg wrap">
           {SHOT_SIZES.map((s) => (
             <button key={s} className={cue.shotSize === s ? 'on' : ''} onClick={() => set({ shotSize: s })} title={SHOT_LABEL[s]}>
               {s}
@@ -574,8 +695,8 @@ function CueInspector(props: {
         </Field>
       </div>
 
-      <Field label="ATEM 액션">
-        <AtemActionInput value={cue.atemAction} onChange={(atemAction) => set({ atemAction })} />
+      <Field label="스위처 동작">
+        <AtemActionInput value={cue.atemAction} caps={props.caps} onChange={(atemAction) => set({ atemAction })} />
       </Field>
 
       <Field label="다른 순서로 이동">
@@ -599,7 +720,8 @@ function CueInspector(props: {
   );
 }
 
-function AtemActionInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function AtemActionInput({ value, caps, onChange }: { value: string; caps?: SwitcherCaps; onChange: (v: string) => void }) {
+  const no = (ok: boolean | undefined, text: string) => (ok === false ? ` — ${text}` : '');
   const parsed: AtemAction = parseAtemAction(value) ?? { kind: 'cut' };
   const emit = (a: AtemAction) => onChange(formatAtemAction(a));
   return (
@@ -612,9 +734,9 @@ function AtemActionInput({ value, onChange }: { value: string; onChange: (v: str
         }}
       >
         <option value="cut">CUT (즉시 전환)</option>
-        <option value="auto">AUTO (트랜지션)</option>
-        <option value="macro">매크로 실행</option>
-        <option value="dsk">DSK 키어 ON/OFF</option>
+        <option value="auto">AUTO (트랜지션){no(caps?.transition, '이 스위처는 컷으로 나감')}</option>
+        <option value="macro">매크로 실행{no(caps?.macro, '이 스위처 미지원')}</option>
+        <option value="dsk">DSK 키어 ON/OFF{no(caps?.dsk, '이 스위처 미지원')}</option>
       </select>
       {parsed.kind === 'macro' && (
         <label className="row">
@@ -684,5 +806,81 @@ function NumberInput(props: {
         if (Number.isFinite(n) && (props.min == null || n >= props.min) && (props.max == null || n <= props.max)) props.onChange(n);
       }}
     />
+  );
+}
+
+/** 다른 행사의 순서(Act)를 큐째로 복사해 오기 (새 id 발급) */
+function ActImporter({ currentId, onClose, onImport }: { currentId: string; onClose: () => void; onImport: (acts: Act[]) => void }) {
+  const [list, setList] = useState<ServiceSummary[] | null>(null);
+  const [src, setSrc] = useState<Service | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    api
+      .listServices()
+      .then((l) => setList(l.filter((s) => s.id !== currentId)))
+      .catch((e) => setError(e.message));
+  }, [currentId]);
+  const choose = (id: string) => {
+    setPicked(new Set());
+    api.getService(id).then(setSrc).catch((e) => setError(e.message));
+  };
+  const toggle = (id: string) =>
+    setPicked((p) => {
+      const n = new Set(p);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const doImport = () => {
+    if (!src) return;
+    const acts = src.acts
+      .filter((a) => picked.has(a.id))
+      .map((a) => ({ ...a, id: defaultIdGen(), cues: a.cues.map((c) => ({ ...c, id: defaultIdGen() })) }));
+    onImport(acts);
+  };
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>다른 행사에서 순서 가져오기</h3>
+        {error && <p className="editor-msg err">{error}</p>}
+        <div className="row" style={{ alignItems: 'flex-start', gap: 16 }}>
+          <div style={{ flex: 1, maxHeight: 360, overflow: 'auto' }}>
+            <div className="muted" style={{ fontSize: 12 }}>
+              ① 행사
+            </div>
+            {list === null && <p className="muted">불러오는 중…</p>}
+            {list?.map((s) => (
+              <div key={s.id}>
+                <button className={src?.id === s.id ? 'primary' : ''} style={{ width: '100%', textAlign: 'left', marginTop: 4 }} onClick={() => choose(s.id)}>
+                  {s.date ?? ''} {s.title} <span className="muted">({s.actCount})</span>
+                </button>
+              </div>
+            ))}
+          </div>
+          <div style={{ flex: 1, maxHeight: 360, overflow: 'auto' }}>
+            <div className="muted" style={{ fontSize: 12 }}>
+              ② 가져올 순서
+            </div>
+            {src?.acts.map((a) => (
+              <label key={a.id} className="row" style={{ marginTop: 6, cursor: 'pointer' }}>
+                <input type="checkbox" checked={picked.has(a.id)} onChange={() => toggle(a.id)} />
+                <span>
+                  {a.title} <span className="muted">· {MODE_LABEL[a.mode]} · 큐 {a.cues.length}</span>
+                </span>
+              </label>
+            ))}
+            {src && src.acts.length === 0 && <p className="muted">순서가 없습니다</p>}
+          </div>
+        </div>
+        <div className="row" style={{ marginTop: 16 }}>
+          <span className="spacer" />
+          <button onClick={onClose}>취소</button>
+          <button className="primary" disabled={picked.size === 0} onClick={doImport}>
+            {picked.size}개 끝에 붙이기
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

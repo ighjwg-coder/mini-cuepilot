@@ -8,6 +8,7 @@ import { commandSchema, formatZodError, parseImport, serviceInputSchema, toExpor
 import { APP_NAME, APP_VERSION } from '../shared/version';
 import type { DeviceManager } from './devices/manager';
 import { listSerialPorts } from './devices/serial';
+import { createAccessPolicy, type AccessPolicy } from './access';
 import { ConflictError, type ServiceRepo } from './repo';
 import type { ShowRuntime } from './runtime';
 import { attachWebSocket } from './ws';
@@ -25,6 +26,8 @@ export interface AppDeps {
   logger?: boolean | { level: string };
   /** 지정 시 HTTPS 로 서비스 (폰에서 Wake Lock API 사용 가능) */
   https?: { key: Buffer; cert: Buffer };
+  /** 제어 권한 (기본: 이 PC 에서만 + CAMCUE_PIN) */
+  access?: AccessPolicy;
 }
 
 class HttpError extends Error {
@@ -42,8 +45,28 @@ function parse<T>(schema: ZodType<T>, body: unknown): T {
   return r.data;
 }
 
-export async function buildApp({ repo, runtime, devices, apkPath, webDir, logger = false, https }: AppDeps): Promise<FastifyInstance> {
+export async function buildApp({
+  repo,
+  runtime,
+  devices,
+  apkPath,
+  webDir,
+  logger = false,
+  https,
+  access = createAccessPolicy(process.env.CAMCUE_PIN),
+}: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger, bodyLimit: 5 * 1024 * 1024, ...(https ? { https } : {}) }) as unknown as FastifyInstance;
+  const pinOf = (req: { headers: Record<string, string | string[] | undefined> }) => {
+    const v = req.headers['x-camcue-pin'];
+    return typeof v === 'string' ? decodeURIComponent(v) : undefined;
+  };
+
+  // 바꾸는 요청(GO·저장·삭제·장비 설정 등)은 제어 권한이 있어야 한다. 읽기(GET)는 누구나
+  app.addHook('onRequest', async (req, reply) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || !req.url.startsWith('/api/')) return;
+    if (access.canControl(req.socket.remoteAddress, pinOf(req))) return;
+    return reply.status(403).send({ error: access.denyReason(), code: 'PIN_REQUIRED' });
+  });
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof HttpError) return reply.status(err.statusCode).send({ error: err.message });
@@ -55,7 +78,7 @@ export async function buildApp({ repo, runtime, devices, apkPath, webDir, logger
     return reply.status(500).send({ error: '서버 오류' });
   });
 
-  const ws = attachWebSocket(app.server, runtime);
+  const ws = attachWebSocket(app.server, runtime, access);
   app.addHook('onClose', async () => ws.close());
 
   // ── 상태 ──
@@ -70,7 +93,7 @@ export async function buildApp({ repo, runtime, devices, apkPath, webDir, logger
       .flat()
       .filter((i) => i && i.family === 'IPv4' && !i.internal)
       .map((i) => `http://${i!.address}${port === '80' ? '' : `:${port}`}`);
-    return { lanUrls, apk: apkAvailable() };
+    return { lanUrls, apk: apkAvailable(), canControl: access.canControl(req.socket.remoteAddress, pinOf(req)), pinEnabled: access.pinEnabled };
   });
 
   // ── 안드로이드 앱 내려받기 ──
@@ -102,10 +125,24 @@ export async function buildApp({ repo, runtime, devices, apkPath, webDir, logger
 
   app.put<{ Params: { id: string } }>('/api/services/:id', async (req) => {
     const input = parse(serviceInputSchema, req.body);
-    const saved = await repo.save(req.params.id, input);
+    const base = req.headers['x-camcue-base'];
+    const saved = await repo.save(req.params.id, input, typeof base === 'string' && base ? base : undefined);
     if (!saved) throw new HttpError(404, '행사를 찾을 수 없습니다');
     runtime.updateService(saved);
     return saved;
+  });
+
+  /** 행사 복제 (매주 같은 순서의 예배 큐시트를 이어서 쓰기) */
+  app.post<{ Params: { id: string } }>('/api/services/:id/duplicate', async (req, reply) => {
+    const src = await repo.get(req.params.id);
+    if (!src) throw new HttpError(404, '행사를 찾을 수 없습니다');
+    const b = (req.body ?? {}) as { title?: unknown; date?: unknown };
+    const input = parse(serviceInputSchema, {
+      ...toExportFile(src).service,
+      title: typeof b.title === 'string' && b.title.trim() ? b.title : `${src.title} (복사)`,
+      date: typeof b.date === 'string' && b.date ? b.date : src.date,
+    });
+    return reply.status(201).send(await repo.create(input));
   });
 
   app.delete<{ Params: { id: string } }>('/api/services/:id', async (req, reply) => {
@@ -138,11 +175,13 @@ export async function buildApp({ repo, runtime, devices, apkPath, webDir, logger
   app.get('/api/show', async () => ({ service: runtime.service, ...runtime.snapshot() }));
 
   app.post('/api/show/load', async (req) => {
-    const { serviceId } = (req.body ?? {}) as { serviceId?: unknown };
+    const { serviceId, restart } = (req.body ?? {}) as { serviceId?: unknown; restart?: unknown };
     if (typeof serviceId !== 'string') throw new HttpError(400, 'serviceId 가 필요합니다');
     const service = await repo.get(serviceId);
     if (!service) throw new HttpError(404, '행사를 찾을 수 없습니다');
-    runtime.load(service);
+    // 이미 라이브 중인 행사를 다시 열면 진행 위치를 지우지 않는다 (처음부터는 restart: true 또는 디렉터의 RESET)
+    if (runtime.service?.id === serviceId && restart !== true) runtime.updateService(service);
+    else runtime.load(service);
     return runtime.snapshot();
   });
 

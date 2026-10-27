@@ -8,11 +8,12 @@ import {
   upcoming,
   type EngineEffect,
   type EngineEvent,
+  type CueRef,
   type EngineState,
 } from '../shared/engine';
-import type { ShowCommand, ShowSnapshot, Tally } from '../shared/protocol';
+import type { CommandLogEntry, ShowCommand, ShowSnapshot, Tally } from '../shared/protocol';
 import type { Service } from '../shared/types';
-import { executeAtemAction, type AtemAdapter } from './atem/types';
+import { FULL_CAPS, executeAtemAction, type AtemAdapter } from './atem/types';
 import type { TallyInput } from './devices/manager';
 import type { TimecodeSource } from './timecode';
 
@@ -29,8 +30,16 @@ export interface RuntimeOptions {
    * AUTO 는 트랜지션 진행 중 PVW 를 바꾸면 전환 대상이 바뀔 수 있어 제외한다.
    */
   autoPreview?: boolean;
+  /**
+   * GO·BACK 연타 방지(ms). 이 시간 안에 다시 들어온 GO/BACK 은 무시한다.
+   * 두 번 눌러 큐가 두 칸 넘어가고 컷이 연달아 나가는 사고 방지. 0 = 끔
+   */
+  stepLockMs?: number;
   log?: (msg: string, err?: unknown) => void;
 }
+
+/** 디렉터 화면에 보여 줄 스위처 명령 기록 수 */
+const COMMAND_LOG_LIMIT = 12;
 
 interface RuntimeEvents {
   state: [ShowSnapshot];
@@ -46,6 +55,9 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
   private readonly now: () => number;
   private readonly opts: Required<Omit<RuntimeOptions, 'now' | 'tallyInput'>>;
   private readonly tallyInput: TallyInput | undefined;
+  private lastStepAt = -Infinity;
+  private commandLog: CommandLogEntry[] = [];
+  private commandSeq = 0;
 
   constructor(options: RuntimeOptions) {
     super();
@@ -54,6 +66,7 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
     this.opts = {
       tickMs: 20,
       autoPreview: true,
+      stepLockMs: 0,
       log: (msg, err) => console.error(`[runtime] ${msg}`, err ?? ''),
       ...options,
     };
@@ -88,12 +101,20 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
     this.unsubs.splice(0).forEach((u) => u());
   }
 
-  /** 라이브 대상 행사 교체 → STANDBY 로 초기화 */
-  load(service: Service | null) {
+  /**
+   * 라이브 대상 행사 교체 → STANDBY 로 초기화.
+   * resumeAt 을 주면 그 큐 위치로 컷 없이 이어서 시작 (서버 재시작 후 복원)
+   */
+  load(service: Service | null, resumeAt?: CueRef | null) {
     this.opts.timecode.stop();
     this._service = service;
     this._state = initialState();
     this.emit('service', service);
+    if (service && resumeAt) {
+      const r = reduce(service, this._state, { type: 'JUMP', now: this.now(), ...resumeAt, silent: true });
+      this._state = r.state;
+      this.runEffects(r.effects);
+    }
     this.emitState();
   }
 
@@ -115,17 +136,22 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
 
   command(cmd: ShowCommand) {
     const now = this.now();
+    // 컷이 나가는 이동(GO·BACK)은 연타를 막는다. 컷 없는 이동·HOLD·JUMP 는 그대로
+    if ((cmd.command === 'GO' || (cmd.command === 'BACK' && !cmd.silent)) && this.opts.stepLockMs > 0) {
+      if (now - this.lastStepAt < this.opts.stepLockMs) return;
+      this.lastStepAt = now;
+    }
     switch (cmd.command) {
       case 'GO':
         return this.apply({ type: 'GO', now });
       case 'BACK':
-        return this.apply({ type: 'BACK', now });
+        return this.apply({ type: 'BACK', now, silent: cmd.silent });
       case 'HOLD':
         return this.apply({ type: 'HOLD', now, on: cmd.on });
       case 'RESET':
         return this.apply({ type: 'RESET' });
       case 'JUMP':
-        return this.apply({ type: 'JUMP', now, actIndex: cmd.actIndex, cueIndex: cmd.cueIndex });
+        return this.apply({ type: 'JUMP', now, actIndex: cmd.actIndex, cueIndex: cmd.cueIndex, silent: cmd.silent });
     }
   }
 
@@ -145,7 +171,11 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
       const preview = atem.connected && atem.previewInput !== program ? atem.previewInput : next();
       return { program, preview: preview !== null && onAir.includes(preview) ? null : preview, onAir, source: 'gpi' };
     }
-    if (atem.connected) return { program: atem.programInput, preview: atem.previewInput, onAir: one(atem.programInput), source: 'atem' };
+    if (atem.connected) {
+      // GPI 접점 컷·이케가미 라우터는 스위처 상태를 읽어 오지 못한다 → 캠큐가 보낸 명령 기준 (패널 수동 컷 모름)
+      const source = atem.mode === 'gpi' || atem.mode === 'ikegami' ? 'command' : 'atem';
+      return { program: atem.programInput, preview: atem.previewInput, onAir: one(atem.programInput), source };
+    }
     return { program: this._state.programCamera, preview: next(), onAir: one(this._state.programCamera), source: 'engine' };
   }
 
@@ -157,6 +187,8 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
       atem: this.opts.atem.status(),
       timecode: { running: this.opts.timecode.running, source: this.opts.timecode.name },
       serverTime: this.now(),
+      commandLog: [...this.commandLog],
+      switcherCaps: this.opts.atem.capabilities?.() ?? FULL_CAPS,
     };
   }
 
@@ -177,29 +209,51 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
       else {
         // AUTO 는 트랜지션 중 PVW 를 바꾸면 안 되므로 제외. macro·dsk 도 필요 시 컷하므로 컷과 같이 취급
         switched = e.action.kind !== 'auto';
-        this.enqueueAtem(`큐 ${e.cueId} (${e.action.kind}, CAM ${e.camera})`, () =>
+        this.enqueueAtem(`CAM ${e.camera} ${e.action.kind.toUpperCase()}${this.cueLabel(e.cueId)}`, () =>
           executeAtemAction(this.opts.atem, e.camera, e.action),
         );
       }
     }
     if (switched && this.opts.autoPreview && this._service) {
       const next = upcoming(this._service, this._state, this.now(), 1)[0];
-      if (next) this.enqueueAtem(`PVW 준비 CAM ${next.cue.camera}`, () => this.opts.atem.setPreview(next.cue.camera));
+      if (next) this.enqueueAtem(`PVW 준비 CAM ${next.cue.camera}`, () => this.opts.atem.setPreview(next.cue.camera), true);
     }
   }
 
+  /** " · 순서이름 #3" (기록 표시용) */
+  private cueLabel(cueId: string): string {
+    const acts = this._service?.acts ?? [];
+    for (const act of acts) {
+      const i = act.cues.findIndex((c) => c.id === cueId);
+      if (i >= 0) return ` · ${act.title} #${i + 1}`;
+    }
+    return '';
+  }
+
+  private record(result: CommandLogEntry['result'], label: string, error: string | null) {
+    this.commandLog.push({ id: ++this.commandSeq, at: this.now(), result, label, error });
+    if (this.commandLog.length > COMMAND_LOG_LIMIT) this.commandLog.splice(0, this.commandLog.length - COMMAND_LOG_LIMIT);
+    this.emitState();
+  }
+
   /** ATEM 명령은 순서 보장을 위해 직렬 큐로 실행. 실패해도 쇼 진행은 계속된다 */
-  private enqueueAtem(label: string, fn: () => Promise<void>) {
+  /** quiet: 성공은 기록하지 않음 (PVW 준비 등 보조 명령) */
+  private enqueueAtem(label: string, fn: () => Promise<void>, quiet = false) {
     this.atemQueue = this.atemQueue.then(async () => {
       const status = this.opts.atem.status();
       if (!status.connected) {
-        if (status.mode !== 'disabled') this.opts.log(`스위처 미연결 — 명령을 보내지 못함: ${label}`);
+        if (status.mode !== 'disabled') {
+          this.opts.log(`스위처 미연결 — 명령을 보내지 못함: ${label}`);
+          this.record('skipped', label, '스위처 미연결');
+        }
         return;
       }
       try {
         await fn();
+        if (!quiet) this.record('ok', label, null);
       } catch (err) {
         this.opts.log(`ATEM 명령 실패: ${label}`, err);
+        this.record('failed', label, (err as Error)?.message ?? String(err));
       }
     });
   }

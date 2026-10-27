@@ -1,7 +1,7 @@
 // 실행 중에 스위처 종류를 바꿀 수 있게 하는 대리 어댑터.
 // ShowRuntime 은 이 객체 하나만 알고, 장비 연결 화면에서 설정을 저장하면 안쪽 어댑터만 교체된다.
 import type { AtemStatus } from '../../shared/protocol';
-import type { AtemAdapter } from '../atem/types';
+import { FULL_CAPS, type AtemAdapter } from '../atem/types';
 
 export class SwitchableAdapter implements AtemAdapter {
   private listeners = new Set<(s: AtemStatus) => void>();
@@ -27,6 +27,9 @@ export class SwitchableAdapter implements AtemAdapter {
 
   status() {
     return this.inner.status();
+  }
+  capabilities() {
+    return this.inner.capabilities?.() ?? FULL_CAPS;
   }
   onStatus(listener: (s: AtemStatus) => void) {
     this.listeners.add(listener);

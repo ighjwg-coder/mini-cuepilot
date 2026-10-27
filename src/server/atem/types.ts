@@ -1,6 +1,6 @@
 // ATEM 어댑터 인터페이스. 실제 장비(atem-connection) / mock / disabled 가 같은 인터페이스를 구현한다.
 import type { AtemAction } from '../../shared/atemAction';
-import type { AtemStatus } from '../../shared/protocol';
+import type { AtemStatus, SwitcherCaps } from '../../shared/protocol';
 
 export interface AtemAdapter {
   status(): AtemStatus;
@@ -17,7 +17,14 @@ export interface AtemAdapter {
   runMacro(index: number): Promise<void>;
   /** keyer 는 0부터 (atem-connection 규약) */
   setDownstreamKeyOnAir(keyer: number, onAir: boolean): Promise<void>;
+  /** 이 스위처로 할 수 있는 것. 없으면 전부 가능 (ATEM) */
+  capabilities?(): SwitcherCaps;
 }
+
+export const FULL_CAPS: SwitcherCaps = { cameras: null, transition: true, macro: true, dsk: true };
+
+/** 설정 목록(cams[i] = CAM(i+1) 의 채널, 0 = 없음) → 컷 가능한 카메라 번호 */
+export const camerasFrom = (channels: number[]) => channels.flatMap((ch, i) => (ch > 0 ? [i + 1] : []));
 
 /**
  * 큐 하나의 atemAction 을 어댑터 호출로 변환.

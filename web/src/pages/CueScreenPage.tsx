@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useParams } from 'react-router-dom';
 import { cameraView, cueDurationMs, cueElapsedMs, currentAct, type UpcomingCue } from '@shared/engine';
 import { parseNote } from '@shared/note';
+import { isRealTally } from '@shared/protocol';
 import { MAX_CAMERA, MIN_CAMERA, type Cue } from '@shared/types';
 import { SHOT_LABEL, cameraColor, formatClock } from '../lib/format';
 import { useShow, useTicker } from '../lib/useShow';
@@ -38,7 +39,7 @@ export function CueScreenPage() {
 type Phase = 'onair' | 'next' | 'standby' | 'idle' | 'offline';
 
 function CueScreen({ camera }: { camera: number }) {
-  const { connected, service, snapshot, serverNow } = useShow('cam', camera);
+  const { connected, service, snapshot, serverNow, clients } = useShow('cam', camera);
   const wake = useWakeLock();
   // 앱에서는 화면 유지·전체 화면을 앱이 처리 → 바로 시작
   const [started, setStarted] = useState(inApp);
@@ -64,16 +65,22 @@ function CueScreen({ camera }: { camera: number }) {
 
   // ── 탈리 판단 ──
   const onAirCams = tally ? (tally.onAir ?? (tally.program === null ? [] : [tally.program])) : [];
-  /** 스위처·GPI 가 알려 준 실제 탈리인가 (아니면 큐 진행 기준 추정) */
-  const realTally = tally?.source === 'gpi' || tally?.source === 'atem';
-  /** 스위처를 쓰도록 설정했는데 연결이 끊겨 큐 기준으로 추정 중 */
-  const estimated = tally?.source === 'engine' && switcherMode !== undefined && switcherMode !== 'disabled';
+  /** 스위처·GPI 가 알려 준 실제 탈리인가 (아니면 큐 진행·캠큐 명령 기준 추정) */
+  const realTally = isRealTally(tally);
+  /**
+   * 추정 탈리: ① 스위처를 쓰도록 설정했는데 연결이 끊겨 큐 기준으로 보여 주는 중
+   * ② GPI 접점 컷·이케가미처럼 스위처 상태를 읽지 못해 "캠큐가 보낸 컷" 기준 (패널 수동 컷은 모름)
+   */
+  const byCommand = tally?.source === 'command';
+  const estimated = byCommand || (tally?.source === 'engine' && switcherMode !== undefined && switcherMode !== 'disabled');
+  /** 같은 카메라 번호를 고른 화면 수 (번호 착각 확인용) */
+  const sameCamScreens = clients.filter((c) => c.role === 'cam' && c.camera === camera).length;
   const sinceSwitch = state?.lastTransition ? now - state.lastTransition.at : Infinity;
   const switching = sinceSwitch < SWITCH_GRACE_MS;
   const isCurrent = !!view?.current;
   const tallyOn = onAirCams.includes(camera);
   /** 내 큐로 막 넘어왔고 실제 탈리가 따라오는 중 */
-  const pending = realTally && isCurrent && !tallyOn && switching;
+  const pending = (realTally || byCommand) && isCurrent && !tallyOn && switching;
   const onAir = connected && (tallyOn || pending);
   /** 큐와 상관없이 실제로 송출 중 (패널에서 수동 컷) */
   const manualOnAir = connected && realTally && tallyOn && !isCurrent && !switching;
@@ -153,13 +160,17 @@ function CueScreen({ camera }: { camera: number }) {
   const mainLabel = view?.current ? (notOnAir ? '큐상 지금 내 차례 · 실제 송출 아님' : '지금 내 샷') : manualOnAir ? '다음 큐에서 찍을 샷' : '다음 내 샷';
 
   return (
-    <div className={`cs cs-${phase} ${showPvw ? 'cs-pvw' : ''} ${settings.blink ? '' : 'cs-noblink'}`} style={style}>
+    <div
+      className={`cs cs-${phase} ${showPvw ? 'cs-pvw' : ''} ${settings.blink ? '' : 'cs-noblink'} ${phase === 'onair' && estimated ? 'cs-onair-est' : ''}`}
+      style={style}
+    >
       <div className="cs-tally" aria-hidden />
 
       <header className="cs-header">
         <span className="cs-cam">CAM {camera}</span>
         {showPvw && <span className="cs-pvw-tag">PVW</span>}
-        {estimated && connected && <span className="cs-estimate">탈리 추정</span>}
+        {estimated && connected && <span className="cs-estimate">{byCommand ? '탈리 추정 · 명령 기준' : '탈리 추정'}</span>}
+        {sameCamScreens > 1 && <span className="cs-estimate cs-dup">CAM {camera} 화면 {sameCamScreens}대</span>}
         <span className="cs-spacer" />
         {state?.held && <span className="cs-hold">HOLD</span>}
         <span className={`cs-conn ${connected ? 'ok' : 'bad'}`}>{connected ? '●' : '● 재연결 중'}</span>
@@ -172,7 +183,7 @@ function CueScreen({ camera }: { camera: number }) {
       <section className={`cs-band ${shaking ? 'cs-shake' : ''}`}>
         {phase === 'onair' && (
           <>
-            <span className="cs-band-title">● ON AIR</span>
+            <span className="cs-band-title">● ON AIR{estimated ? ' (추정)' : ''}</span>
             {liveRemaining != null && <span className="cs-band-time cs-mono">{formatClock(liveRemaining)}</span>}
           </>
         )}
@@ -202,7 +213,13 @@ function CueScreen({ camera }: { camera: number }) {
       )}
       {phase === 'onair' && (
         <div className="cs-band-sub">
-          {manualOnAir ? '수동 컷 — 큐와 별개로 송출 중' : liveRemaining != null ? '이 샷 남은 시간' : '다음 GO 까지 유지'}
+          {manualOnAir
+            ? '수동 컷 — 큐와 별개로 송출 중'
+            : byCommand
+              ? '캠큐가 보낸 컷 기준 — 패널 수동 컷은 모름, 카메라 탈리 램프 확인'
+              : liveRemaining != null
+                ? '이 샷 남은 시간'
+                : '다음 GO 까지 유지'}
         </div>
       )}
       {notOnAir && <div className="cs-band-sub">패널에서 다른 카메라로 컷됨 — 디렉터 확인</div>}
