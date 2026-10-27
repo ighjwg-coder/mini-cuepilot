@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-10-27
+
 ### 수정
 - **JSON 가져오기에서 실제 오류 대신 "title: expected string" 이 나오던 문제** — 이제 문제가 있는 큐 위치(예: `service.acts.1.cues.0.section`)를 정확히 표시
 - 섹션 이름에 하이픈·밑줄 허용, 최대 12자 (`INTRO-A`, `V2-DB`, `LIGHT-IN` 등)
