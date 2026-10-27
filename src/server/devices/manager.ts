@@ -4,7 +4,7 @@ import type { DeviceSettings, DevicesSnapshot, SerialLogEntry } from '../../shar
 import type { Tally } from '../../shared/protocol';
 import { DisabledAtemAdapter, MockAtemAdapter, RealAtemAdapter, type AtemAdapter } from '../atem';
 import { readDeviceSettings, resolveDevices, updateConfigFile, type ResolvedDevices } from './config';
-import { DisabledGpi, MockGpi, ModbusGpi, programFromInputs, type GpiModule } from './gpi';
+import { DisabledGpi, MockGpi, ModbusGpi, onAirFromInputs, type GpiModule } from './gpi';
 import { GpiSwitcherAdapter } from './gpiSwitcher';
 import { IkegamiRouterAdapter, parseHex } from './ikegami';
 import { MockSerialLink, NodeSerialLink, type Parity, type SerialLink } from './serial';
@@ -14,7 +14,8 @@ import { SwitchableAdapter } from './switchable';
 export interface TallyInput {
   /** 지금 이 입력을 탈리 기준으로 써야 하는가 (설정 + 연결 상태) */
   active(): boolean;
-  program(): number | null;
+  /** 탈리가 켜진 카메라 전부 (작은 번호부터) */
+  onAir(): number[];
   onChange(listener: () => void): () => void;
 }
 
@@ -50,7 +51,7 @@ export class DeviceManager {
     const self = this;
     this.tallyInput = {
       active: () => self.resolved.tally.source === 'gpi' && self.gpi.status().connected,
-      program: () => programFromInputs(self.gpi.status().inputs, self.resolved.tally.inputs, self.resolved.tally.invert),
+      onAir: () => onAirFromInputs(self.gpi.status().inputs, self.resolved.tally.inputs, self.resolved.tally.invert),
       onChange: (l) => {
         self.tallyListeners.add(l);
         return () => self.tallyListeners.delete(l);

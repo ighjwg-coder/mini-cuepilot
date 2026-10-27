@@ -46,7 +46,8 @@ function CueScreen({ camera }: { camera: number }) {
   const state = snapshot?.state;
   const view = service && state ? cameraView(service, state, now, camera) : null;
   const tally = snapshot?.tally;
-  const onAir = tally ? tally.program === camera : false;
+  // 디졸브·키로 두 대가 동시에 나갈 때도 둘 다 ON AIR (GPI 실측 탈리)
+  const onAir = tally ? (tally.onAir ?? [tally.program]).includes(camera) : false;
   const onPreview = !onAir && tally?.preview === camera;
   const act = service && state ? currentAct(service, state) : null;
 

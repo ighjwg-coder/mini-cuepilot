@@ -117,7 +117,7 @@ describe('ShowRuntime + Mock ATEM 통합', () => {
     runtime.command({ command: 'GO' });
     await runtime.idle();
     expect(atem.log).toEqual([{ op: 'setPreview', input: 1 }, { op: 'cut' }, { op: 'setPreview', input: 2 }]);
-    expect(runtime.tally()).toEqual({ program: 1, preview: 2, source: 'atem' });
+    expect(runtime.tally()).toEqual({ program: 1, preview: 2, onAir: [1], source: 'atem' });
   });
 
   it('AUTO 큐 뒤에는 PVW 자동 준비를 하지 않음 (트랜지션 중 PVW 변경 방지)', async () => {

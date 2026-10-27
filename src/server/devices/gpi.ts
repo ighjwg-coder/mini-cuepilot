@@ -158,15 +158,21 @@ export class ModbusGpi extends BaseGpi {
 }
 
 /**
- * 입력 채널 상태 → ON AIR 카메라.
- * tallyInputs[i] = CAM(i+1) 의 입력 채널(1부터, 0 = 없음). 여러 개가 켜져 있으면 가장 작은 카메라 번호.
+ * 입력 채널 상태 → ON AIR 카메라 전부 (작은 번호부터).
+ * tallyInputs[i] = CAM(i+1) 의 입력 채널(1부터, 0 = 없음). 디졸브·키로 여러 대가 동시에 켜질 수 있다.
  */
-export function programFromInputs(inputs: boolean[] | null, tallyInputs: number[], invert: boolean): number | null {
-  if (!inputs) return null;
+export function onAirFromInputs(inputs: boolean[] | null, tallyInputs: number[], invert: boolean): number[] {
+  if (!inputs) return [];
+  const cams: number[] = [];
   for (let cam = 1; cam <= tallyInputs.length; cam++) {
     const ch = tallyInputs[cam - 1];
     if (!ch || ch > inputs.length) continue;
-    if (inputs[ch - 1] !== invert) return cam;
+    if (inputs[ch - 1] !== invert) cams.push(cam);
   }
-  return null;
+  return cams;
+}
+
+/** 입력 채널 상태 → 대표 ON AIR 카메라 (여러 대면 가장 작은 번호) */
+export function programFromInputs(inputs: boolean[] | null, tallyInputs: number[], invert: boolean): number | null {
+  return onAirFromInputs(inputs, tallyInputs, invert)[0] ?? null;
 }

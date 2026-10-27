@@ -89,6 +89,7 @@ function LivePanel({
   onCommand: ReturnType<typeof useShow>['command'];
 }) {
   const { state, tally } = snapshot;
+  const onAir = tally.onAir ?? (tally.program === null ? [] : [tally.program]);
   const act = currentAct(service, state);
   const cue = currentCue(service, state);
   const next = upcoming(service, state, now, 1)[0] ?? null;
@@ -172,16 +173,16 @@ function LivePanel({
             RESET
           </button>
         </div>
-        {tally.source === 'gpi' && state.programCamera !== null && tally.program !== state.programCamera && (
+        {tally.source === 'gpi' && state.programCamera !== null && !onAir.includes(state.programCamera) && (
           <div className="tally-mismatch">
-            ⚠️ 실제 송출 {tally.program ? `CAM ${tally.program}` : '없음'} — 큐는 CAM {state.programCamera}
+            ⚠️ 실제 송출 {onAir.length ? onAir.map((n) => `CAM ${n}`).join(' + ') : '없음'} — 큐는 CAM {state.programCamera}
           </div>
         )}
         <div className="tally-grid">
           {Array.from({ length: 8 }, (_, i) => i + 1).map((n) => (
-            <div key={n} className={tally.program === n ? 'pgm' : tally.preview === n ? 'pvw' : ''}>
+            <div key={n} className={onAir.includes(n) ? 'pgm' : tally.preview === n ? 'pvw' : ''}>
               <span style={{ color: cameraColor(n) }}>CAM {n}</span>
-              <small>{tally.program === n ? 'PGM' : tally.preview === n ? 'PVW' : ' '}</small>
+              <small>{onAir.includes(n) ? 'PGM' : tally.preview === n ? 'PVW' : ' '}</small>
             </div>
           ))}
         </div>

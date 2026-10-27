@@ -30,6 +30,12 @@ export interface Tally {
   program: number | null;
   preview: number | null;
   /**
+   * 지금 송출에 나가고 있는 카메라 전부 (작은 번호부터).
+   * 디졸브 중이나 키·PIP 로 두 대가 동시에 나갈 때 GPI 실측 탈리는 여러 대가 켜진다.
+   * 그 외 기준은 program 한 대뿐이다.
+   */
+  onAir: number[];
+  /**
    * atem: 스위처가 보고한 상태 (ATEM·이케가미 등, 이름은 호환 유지)
    * gpi: GPI 모듈로 읽은 실제 탈리 신호
    * engine: 장비 미연결 시 큐 진행 기준 추정값

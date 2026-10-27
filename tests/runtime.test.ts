@@ -39,7 +39,7 @@ describe('ShowRuntime (ATEM 미연결)', () => {
 
   it('ATEM 미연결 시 탈리는 엔진 추정값(source=engine)', () => {
     runtime.command({ command: 'GO' });
-    expect(runtime.tally()).toEqual({ program: 1, preview: 2, source: 'engine' });
+    expect(runtime.tally()).toEqual({ program: 1, preview: 2, onAir: [1], source: 'engine' });
     expect(runtime.snapshot().atem).toMatchObject({ mode: 'disabled', connected: false });
   });
 
