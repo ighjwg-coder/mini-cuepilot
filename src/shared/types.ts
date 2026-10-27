@@ -1,6 +1,10 @@
 // 도메인 모델 (서버·클라이언트 공용)
 
-export const SHOT_SIZES = ['WS', 'MS', 'CU', 'ECU'] as const;
+/**
+ * 샷 크기 (넓은 것 → 좁은 것, 마지막 2S 는 인원 기준).
+ * WS 는 v0.0.6 까지의 의미(와이드) 그대로 — 국내 방송의 "웨이스트샷"과 헷갈리지 않도록 화면에는 한글을 같이 쓴다.
+ */
+export const SHOT_SIZES = ['LS', 'WS', 'FS', 'KS', 'MS', 'BS', 'CU', 'ECU', '2S'] as const;
 export type ShotSize = (typeof SHOT_SIZES)[number];
 
 export const ADVANCE_MODES = ['MANUAL', 'SECTION', 'TIMECODE'] as const;
@@ -43,6 +47,8 @@ export interface Service {
   title: string;
   date: string | null;
   acts: Act[];
+  /** 마지막 저장 시각(ISO). 에디터가 저장할 때 "그 사이 다른 곳에서 저장했는지" 확인용 */
+  updatedAt?: string;
 }
 
 export interface ServiceSummary {

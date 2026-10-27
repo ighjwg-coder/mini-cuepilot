@@ -104,4 +104,38 @@ export const ops = {
 
   deleteCue: (s: Service, actIndex: number, cueIndex: number): Service =>
     mapAct(s, actIndex, (a) => ({ ...a, cues: a.cues.filter((_, i) => i !== cueIndex) })),
+
+  /** 여러 큐 한꺼번에 고치기 (일괄 편집) */
+  updateCues: (s: Service, ids: ReadonlySet<string>, patch: Partial<Omit<Cue, 'id'>>): Service => ({
+    ...s,
+    acts: s.acts.map((a) => (a.cues.some((c) => ids.has(c.id)) ? { ...a, cues: a.cues.map((c) => (ids.has(c.id) ? { ...c, ...patch } : c)) } : a)),
+  }),
+
+  deleteCues: (s: Service, ids: ReadonlySet<string>): Service => ({
+    ...s,
+    acts: s.acts.map((a) => (a.cues.some((c) => ids.has(c.id)) ? { ...a, cues: a.cues.filter((c) => !ids.has(c.id)) } : a)),
+  }),
+
+  /**
+   * 실제 걸린 시간(초)으로 MANUAL 순서의 큐 길이 채우기.
+   * overwrite=false 면 길이가 비어 있는 큐만. 반환: 새 문서와 바뀐 큐 수
+   */
+  fillDurations: (s: Service, measured: Record<string, number>, overwrite: boolean): { service: Service; changed: number } => {
+    let changed = 0;
+    const acts = s.acts.map((a) => {
+      if (a.mode !== 'MANUAL') return a;
+      return {
+        ...a,
+        cues: a.cues.map((c) => {
+          const sec = measured[c.id];
+          if (sec == null || sec <= 0 || (!overwrite && c.durationSec != null)) return c;
+          const rounded = Math.max(1, Math.round(sec));
+          if (rounded === c.durationSec) return c;
+          changed++;
+          return { ...c, durationSec: rounded };
+        }),
+      };
+    });
+    return { service: { ...s, acts }, changed };
+  },
 };

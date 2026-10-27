@@ -8,6 +8,8 @@ import android.graphics.Color
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
@@ -19,7 +21,8 @@ import android.widget.TextView
 
 /**
  * 첫 화면: 같은 Wi-Fi 의 CamCue 서버를 자동으로 찾고, 카메라 번호를 고르면 CueScreen 으로.
- * 마지막에 쓴 서버·카메라를 기억해서, 서버가 하나만 보이면 바로 그 카메라 화면을 연다.
+ * 마지막에 쓴 서버·카메라를 기억해서, 서버가 하나만 보이면 3초 안내 후 그 카메라 화면을 연다
+ * (공용 폰을 다른 기사가 들었을 때 번호를 바꿀 수 있도록).
  */
 class MainActivity : Activity() {
     private lateinit var status: TextView
@@ -34,6 +37,9 @@ class MainActivity : Activity() {
     private var autoOpen = true
 
     private val prefs by lazy { getSharedPreferences("camcue", Context.MODE_PRIVATE) }
+    private val main = Handler(Looper.getMainLooper())
+    /** 자동 접속 카운트다운 (null = 없음) */
+    private var countdown: Runnable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,6 +56,42 @@ class MainActivity : Activity() {
         renderCameras()
     }
 
+    override fun onPause() {
+        super.onPause()
+        cancelAutoOpen(null)
+    }
+
+    /** 지난번 카메라로 자동 접속하기 전 3초 안내. 상태 글자를 누르면 취소 */
+    private fun startAutoOpen(cam: Int) {
+        cancelAutoOpen(null)
+        var left = 3
+        val tick = object : Runnable {
+            override fun run() {
+                if (countdown !== this) return
+                if (left <= 0) {
+                    countdown = null
+                    openCamera(cam)
+                    return
+                }
+                status.text = "CAM $cam 으로 ${left}초 뒤 접속합니다\n다른 번호면 아래에서 고르세요 · 여기를 누르면 취소"
+                status.setTextColor(Ui.CAMERA_COLORS[cam] ?: Ui.OK)
+                left--
+                main.postDelayed(this, 1000)
+            }
+        }
+        countdown = tick
+        tick.run()
+    }
+
+    private fun cancelAutoOpen(message: String?) {
+        countdown?.let { main.removeCallbacks(it) }
+        if (countdown != null && message != null) {
+            status.text = message
+            status.setTextColor(Ui.MUTED)
+        }
+        countdown = null
+    }
+
     private fun buildUi(): View {
         val pad = Ui.dp(this, 20)
         val col = LinearLayout(this).apply {
@@ -61,6 +103,7 @@ class MainActivity : Activity() {
 
         col.addView(section("1. 캠큐 서버"))
         status = Ui.text(this, "", 15f, Ui.MUTED)
+        status.setOnClickListener { cancelAutoOpen("자동 접속을 취소했습니다 — 카메라 번호를 고르세요") }
         col.addView(status)
         serverList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(serverList, lp(top = 8))
@@ -152,7 +195,7 @@ class MainActivity : Activity() {
         val cam = prefs.getInt("camera", 0)
         if (autoOpen && found.size == 1 && cam in 1..8) {
             autoOpen = false
-            openCamera(cam)
+            startAutoOpen(cam)
         }
     }
 
@@ -227,6 +270,7 @@ class MainActivity : Activity() {
     }
 
     private fun openCamera(n: Int) {
+        cancelAutoOpen(null)
         val s = selected ?: return
         prefs.edit()
             .putInt("camera", n)

@@ -7,8 +7,8 @@
 //
 // 라우터에는 PVW·믹스가 없으므로
 //   setPreview = 다음 카메라 기억만 / cut·auto = PGM 출력의 크로스포인트 전환 / 매크로·DSK = 미지원
-import type { AtemStatus } from '../../shared/protocol';
-import type { AtemAdapter } from '../atem/types';
+import type { AtemStatus, SwitcherCaps } from '../../shared/protocol';
+import { camerasFrom, type AtemAdapter } from '../atem/types';
 import type { SerialLink } from './serial';
 
 /** 템플릿 자리표시 (모두 1바이트) */
@@ -156,6 +156,10 @@ export class IkegamiRouterAdapter implements AtemAdapter {
   onStatus(listener: (s: AtemStatus) => void) {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  capabilities(): SwitcherCaps {
+    return { cameras: camerasFrom(this.opts.camInputs), transition: false, macro: false, dsk: false };
   }
 
   async connect() {

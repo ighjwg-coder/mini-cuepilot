@@ -129,6 +129,11 @@ export function DevicesPage() {
 
   const save = () =>
     run('저장했습니다. 장비를 다시 연결합니다.', async () => {
+      // 진행 중에 저장하면 장비가 모두 다시 연결되며 탈리가 1~2초 끊긴다
+      const show = await api.show().catch(() => null);
+      if (show && show.state.actIndex >= 0 && !confirm('지금 라이브 진행 중입니다.\n저장하면 스위처·GPI 모듈이 다시 연결되며 1~2초 동안 컷·탈리가 끊길 수 있습니다.\n저장할까요?')) {
+        throw new Error('저장을 취소했습니다');
+      }
       const r = await api.saveDeviceSettings(form);
       setDirty(false);
       setForm(r.settings);
@@ -171,10 +176,10 @@ export function DevicesPage() {
               {snap.tally.source === 'gpi'
                 ? 'GPI 실제 신호 기준'
                 : snap.tally.source === 'atem'
-                  ? sw.mode === 'ikegami' || sw.mode === 'gpi'
-                    ? '캠큐가 보낸 전환 명령 기준 (패널 수동 컷은 반영 안 됨)'
-                    : '스위처 보고 기준'
-                  : '큐 진행 기준 (장비 미연결)'}
+                  ? '스위처 보고 기준'
+                  : snap.tally.source === 'command'
+                    ? '캠큐가 보낸 전환 명령 기준 (패널 수동 컷은 반영 안 됨 — 폰에는 "탈리 추정"으로 표시)'
+                    : '큐 진행 기준 (장비 미연결)'}
             </div>
           </div>
           {snap.errors.length > 0 && (

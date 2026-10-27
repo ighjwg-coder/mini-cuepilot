@@ -17,7 +17,7 @@ CamCue(캠큐) v{{VERSION}} — Windows 사용 안내
 
 [화면]
   http://localhost:38080            홈 (행사 목록)
-  http://localhost:38080/director   디렉터 콘솔   Space=GO  Backspace=BACK  H=HOLD
+  http://localhost:38080/director   디렉터 콘솔   Space=GO  Shift+Backspace=BACK  H=HOLD
   http://localhost:38080/editor     큐시트 에디터  Ctrl+S=저장
   http://<PC IP>:38080/cam/1~8      카메라맨 폰 화면 (서버 창에 주소가 표시됩니다)
 

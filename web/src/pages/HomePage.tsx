@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { ServiceSummary } from '@shared/types';
 import { TopBar } from '../components/TopBar';
-import { api } from '../lib/api';
+import { api, openLive } from '../lib/api';
 import { cameraColor } from '../lib/format';
 import { QrCode } from '../components/QrCode';
 
@@ -28,8 +28,7 @@ export function HomePage() {
 
   const goLive = async (id: string) => {
     try {
-      await api.loadShow(id);
-      navigate('/director');
+      if (await openLive(id)) navigate('/director');
     } catch (e) {
       setError((e as Error).message);
     }
@@ -41,6 +40,22 @@ export function HomePage() {
     const today = new Date().toISOString().slice(0, 10);
     const s = await api.createService(title, today).catch((e) => (setError(e.message), null));
     if (s) navigate(`/editor/${s.id}`);
+  };
+
+  /** 지난 행사를 복제해 이번 행사로 (매주 같은 순서의 예배) */
+  const duplicate = async (s: ServiceSummary) => {
+    const title = prompt('복제할 새 행사 이름', s.title);
+    if (!title) return;
+    const today = new Date();
+    const local = new Date(today.getTime() - today.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+    const date = prompt('날짜 (YYYY-MM-DD)', local);
+    if (date === null) return;
+    try {
+      const copy = await api.duplicateService(s.id, title, date || null);
+      navigate(`/editor/${copy.id}`);
+    } catch (e) {
+      setError((e as Error).message);
+    }
   };
 
   const importFile = async (file: File) => {
@@ -104,6 +119,9 @@ export function HomePage() {
                   <td style={{ textAlign: 'right' }}>
                     <div className="row" style={{ justifyContent: 'flex-end' }}>
                       <Link to={`/editor/${s.id}`}>편집</Link>
+                      <button onClick={() => duplicate(s)} title="이 행사를 복사해 새 행사로 (지난주 예배 → 이번 주)">
+                        복제
+                      </button>
                       <button className="primary" onClick={() => goLive(s.id)}>
                         라이브로 열기
                       </button>

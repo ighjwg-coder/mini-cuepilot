@@ -15,6 +15,7 @@ function toDomain(row: ServiceRow): Service {
     id: row.id,
     title: row.title,
     date: row.date,
+    updatedAt: row.updatedAt.toISOString(),
     acts: row.acts.map((a) => ({
       id: a.id,
       title: a.title,
@@ -90,12 +91,16 @@ export class ServiceRepo {
    * 행사 전체 저장 (에디터). id 가 있는 Act/Cue 는 갱신, 없으면 생성, 빠진 것은 삭제.
    * id 를 보존해야 라이브 중 편집해도 진행 위치(현재 큐)가 유지된다.
    */
-  async save(id: string, input: ServiceInput): Promise<Service | null> {
+  async save(id: string, input: ServiceInput, baseUpdatedAt?: string): Promise<Service | null> {
     const existing = await this.db.service.findUnique({
       where: { id },
-      select: { acts: { select: { id: true, cues: { select: { id: true } } } } },
+      select: { updatedAt: true, acts: { select: { id: true, cues: { select: { id: true } } } } },
     });
     if (!existing) return null;
+    // 에디터가 불러온 뒤 다른 곳(다른 PC·탭)에서 먼저 저장했으면 덮어쓰지 않는다
+    if (baseUpdatedAt && existing.updatedAt.toISOString() !== baseUpdatedAt) {
+      throw new ConflictError('다른 곳에서 이 행사를 먼저 저장했습니다 — 최신 내용을 불러온 뒤 다시 고쳐 주세요');
+    }
 
     const ownActIds = new Set(existing.acts.map((a) => a.id));
     const ownCueIds = new Set(existing.acts.flatMap((a) => a.cues.map((c) => c.id)));

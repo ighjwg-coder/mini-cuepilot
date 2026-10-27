@@ -120,15 +120,39 @@ git push --follow-tags   # → GitHub Actions 가 Windows 설치 파일을 만�
 - Act 경계는 항상 GO 로 넘어갑니다 (자동으로 다음 순서로 넘어가지 않음).
 - **HOLD**: 자동 진행·타이머 정지, 다시 누르면 남은 시간부터 재개. HOLD 중에도 GO/BACK 은 동작.
 - **BACK**: 직전 큐로 돌아가며 해당 카메라로 다시 전환.
+- **큐만 이동 (컷 없음)**: 디렉터 화면 체크박스 또는 `Shift`+더블클릭. 스위처를 건드리지 않고 큐 위치만 맞춤
+  (패널이 큐보다 앞서 나갔을 때, 위치를 되돌릴 때)
+- **GO 연타 방지**: GO·BACK 을 0.5초 안에 다시 누르면 무시 (`CAMCUE_GO_LOCK_MS`, 0 = 끔)
+- GO 버튼에 **실제로 갈 큐**(카메라·섹션)가 표시됩니다. SECTION 자동 구간에서는 다음 섹션 첫 큐로 건너뜀
+- 컷이 실패하거나 스위처 미연결로 못 보내면 디렉터 화면에 빨간 알림 + [스위처 명령 기록]
+- **진행 위치 자동 저장**: 캠큐가 재시작돼도 진행 중이던 행사·큐 위치로 컷 없이 돌아옵니다 (3시간 이내)
+- 이미 라이브 중인 행사의 [라이브로 열기] 는 진행 위치를 지우지 않습니다 (처음부터는 디렉터의 RESET)
+- **리허설 모드**: 큐는 진행하지만 스위처에 컷을 보내지 않음 (예배 전 송출 중 연습). 폰에 "리허설" 표시
+- **준비 상태**: 디렉터 상단에 행사·스위처·탈리 기준·카메라맨 폰 접속·리허설 여부를 한 줄로 점검 (모두 ✓ 면 초록)
+- **진행 기록**: 큐 이동·컷 실패를 날짜별 CSV(`데이터 폴더\logs`)로 저장, 디렉터 화면 하단에서 내려받기 (엑셀로 열림)
+- **DB 자동 백업**: 시작할 때마다 `데이터 폴더\backup\camcue-날짜_시각.db` (최근 14개). 복원은 캠큐를 끄고 원하는 파일을 `camcue.db` 로 바꿔 넣기
 
 ### 디렉터 콘솔 단축키
 
 | 키 | 동작 |
 |---|---|
 | `Space` | GO |
-| `Backspace` | BACK |
+| `Shift`+`Backspace` | BACK (`Backspace` 만 누르면 안내만 — 실수 방지) |
 | `H` | HOLD / RESUME |
-| 런시트 더블클릭 | 해당 큐로 JUMP |
+| 런시트 더블클릭 | 해당 큐로 JUMP (+ 컷) |
+| 런시트 `Shift`+더블클릭 | 해당 큐로 컷 없이 이동 |
+
+### 제어 권한 (0.0.7~)
+
+GO·RESET·행사 편집·장비 설정은 **캠큐 PC 에서만** 됩니다. 카메라맨 화면(`/cam/N`)은 누구나 열 수 있습니다.
+다른 기기(노트북·태블릿·다른 PC 의 Companion)에서 제어하려면 `config.env` 에 PIN 을 정하고 다시 시작하세요.
+
+```
+CAMCUE_PIN=4821
+```
+
+다른 기기에서 디렉터 화면을 열면 [PIN 입력] 이 나오고, 한 번 입력하면 그 브라우저에 기억됩니다.
+HTTP 로 제어할 때는 `x-camcue-pin: 4821` 헤더를 붙입니다.
 
 ### 에디터 단축키
 
@@ -138,7 +162,14 @@ git push --follow-tags   # → GitHub Actions 가 Windows 설치 파일을 만�
 | `Ctrl`+`S` | 저장 (라이브 중이면 즉시 반영, 현재 큐 유지) |
 | `Alt`+`←/→` | 선택 큐 이동 |
 | `Ctrl`+`D` | 선택 큐 복제 |
-| `Delete` | 선택 큐 삭제 |
+| `Delete` | 선택 큐 삭제 (여러 개 선택 시 모두) |
+| `Ctrl`+`Z` / `Ctrl`+`Shift`+`Z`·`Ctrl`+`Y` | 되돌리기 / 다시 하기 |
+| `Ctrl`·`Shift`+클릭 | 여러 큐 선택 → 카메라·샷·CUT/AUTO 일괄 변경 (`Esc` 해제) |
+
+- **측정 시간으로 길이 채우기**: 디렉터에서 GO 로 진행한 큐(리허설 포함)의 실제 걸린 시간으로 MANUAL 순서의 큐 길이를 채움
+  → 카메라맨 폰의 ≈ 예상 시간이 정확해짐
+- **카메라별 인쇄**: 전체 진행표 + 카메라마다 한 장 (A4 · PDF 저장 가능). Wi-Fi·PC 장애 대비용 종이 큐시트
+- **다른 행사에서 순서 가져오기**, 홈의 **[복제]** (지난주 예배 → 이번 주)
 
 - **JSON 내보내기**: 에디터 상단 → `{date}-{title}.json` 다운로드 (id 제외, 다른 PC 이식 가능)
 - **JSON 가져오기**: 홈/에디터 → 항상 **새 행사**로 생성
@@ -208,8 +239,9 @@ Bitfocus Companion 의 *Generic HTTP* 액션으로 GO 버튼을 만들 수 있�
 
 ```bash
 curl -X POST http://192.168.10.10:38080/api/show/command \
-  -H 'content-type: application/json' -d '{"command":"GO"}'
-# command: GO | BACK | HOLD | RESET | JUMP(+ actIndex, cueIndex)
+  -H 'content-type: application/json' -H 'x-camcue-pin: 4821' -d '{"command":"GO"}'
+# command: GO | BACK(+ silent) | HOLD | RESET | JUMP(+ actIndex, cueIndex, silent)
+# 캠큐 PC 에서 실행하는 Companion 은 PIN 이 필요 없습니다
 ```
 
 ### 3-6. 이케가미 라우터 · GPI 연결 (0.0.3~)
@@ -357,7 +389,7 @@ CueScreen 하단에 `화면 유지 ON` / `화면 유지 ON(호환)` / `화면 �
 }
 ```
 
-Cue 필드: `camera`(1~8), `shotSize`(WS/MS/CU/ECU), `note`, `durationSec?`, `section?`, `bars?`, `tcInSec?`, `atemAction`
+Cue 필드: `camera`(1~8), `shotSize`(LS/WS/FS/KS/MS/BS/CU/ECU/2S — WS = 와이드), `note`, `durationSec?`, `section?`, `bars?`, `tcInSec?`, `atemAction`
 
 ### 디렉터리 구조
 

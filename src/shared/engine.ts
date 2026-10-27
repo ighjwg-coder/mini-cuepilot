@@ -24,11 +24,12 @@ export type TransitionKind = 'go' | 'back' | 'auto' | 'timecode' | 'jump';
 
 export type EngineEvent =
   | { type: 'GO'; now: number }
-  | { type: 'BACK'; now: number }
+  /** silent: 큐 위치만 옮기고 스위처 컷을 보내지 않음 */
+  | { type: 'BACK'; now: number; silent?: boolean }
   | { type: 'HOLD'; now: number; on?: boolean }
   | { type: 'TICK'; now: number }
   | { type: 'TIMECODE'; now: number; seconds: number }
-  | { type: 'JUMP'; now: number; actIndex: number; cueIndex: number }
+  | { type: 'JUMP'; now: number; actIndex: number; cueIndex: number; silent?: boolean }
   | { type: 'RESET' };
 
 export type EngineEffect =
@@ -162,6 +163,7 @@ function goLive(
   now: number,
   kind: TransitionKind,
   startedAt: number = now,
+  silent = false,
 ): EngineResult {
   const act = service.acts[target.actIndex];
   const cue = act.cues[target.cueIndex];
@@ -174,7 +176,7 @@ function goLive(
     if (act.mode === 'TIMECODE') effects.push({ type: 'TIMECODE_START', actId: act.id });
   }
 
-  const action = parseAtemAction(cue.atemAction);
+  const action = silent ? null : parseAtemAction(cue.atemAction);
   if (action) effects.push({ type: 'ATEM', cueId: cue.id, camera: cue.camera, action });
 
   return {
@@ -206,23 +208,28 @@ function nextSectionStart(service: Service, ref: CueRef): CueRef | null {
   return nextRef(service, { actIndex: ref.actIndex, cueIndex: act.cues.length - 1 });
 }
 
-function handleGo(service: Service, state: EngineState, now: number): EngineResult {
-  if (isStandby(state)) {
-    const first = nextRef(service, { actIndex: -1, cueIndex: -1 });
-    return first ? goLive(service, state, first, now, 'go') : noop(state);
-  }
+/**
+ * GO 를 누르면 갈 큐. 보통은 바로 다음 큐지만,
+ * SECTION 자동 진행 중인 섹션 블록 안이면 다음 섹션 시작으로 건너뛴다(=다음 섹션 수동 트리거)
+ */
+export function goTarget(service: Service, state: EngineState): CueRef | null {
+  if (isStandby(state)) return nextRef(service, { actIndex: -1, cueIndex: -1 });
   const ref = { actIndex: state.actIndex, cueIndex: state.cueIndex };
-  const act = currentAct(service, state)!;
-  // SECTION: 자동 진행 중인 섹션 블록 안이면 다음 섹션 시작으로 건너뛴다(=다음 섹션 수동 트리거)
+  const act = currentAct(service, state);
+  if (!act) return null;
   const inAutoBlock = act.mode === 'SECTION' && isAutoTransition(service, ref);
-  const target = inAutoBlock ? nextSectionStart(service, ref) : nextRef(service, ref);
+  return inAutoBlock ? nextSectionStart(service, ref) : nextRef(service, ref);
+}
+
+function handleGo(service: Service, state: EngineState, now: number): EngineResult {
+  const target = goTarget(service, state);
   return target ? goLive(service, state, target, now, 'go') : noop(state);
 }
 
-function handleBack(service: Service, state: EngineState, now: number): EngineResult {
+function handleBack(service: Service, state: EngineState, now: number, silent?: boolean): EngineResult {
   if (isStandby(state)) return noop(state);
   const target = prevRef(service, { actIndex: state.actIndex, cueIndex: state.cueIndex });
-  return target ? goLive(service, state, target, now, 'back') : noop(state);
+  return target ? goLive(service, state, target, now, 'back', now, silent) : noop(state);
 }
 
 function handleHold(state: EngineState, now: number, on?: boolean): EngineResult {
@@ -279,9 +286,9 @@ function handleTimecode(service: Service, state: EngineState, now: number, secon
   return goLive(service, withTc, { actIndex: state.actIndex, cueIndex: target }, now, 'timecode', startedAt);
 }
 
-function handleJump(service: Service, state: EngineState, now: number, ref: CueRef): EngineResult {
+function handleJump(service: Service, state: EngineState, now: number, ref: CueRef, silent?: boolean): EngineResult {
   if (!cueAt(service, ref)) return noop(state);
-  return goLive(service, state, ref, now, 'jump');
+  return goLive(service, state, ref, now, 'jump', now, silent);
 }
 
 export function reduce(service: Service, state: EngineState, event: EngineEvent): EngineResult {
@@ -289,7 +296,7 @@ export function reduce(service: Service, state: EngineState, event: EngineEvent)
     case 'GO':
       return handleGo(service, state, event.now);
     case 'BACK':
-      return handleBack(service, state, event.now);
+      return handleBack(service, state, event.now, event.silent);
     case 'HOLD':
       return handleHold(state, event.now, event.on);
     case 'TICK':
@@ -297,7 +304,7 @@ export function reduce(service: Service, state: EngineState, event: EngineEvent)
     case 'TIMECODE':
       return handleTimecode(service, state, event.now, event.seconds);
     case 'JUMP':
-      return handleJump(service, state, event.now, { actIndex: event.actIndex, cueIndex: event.cueIndex });
+      return handleJump(service, state, event.now, { actIndex: event.actIndex, cueIndex: event.cueIndex }, event.silent);
     case 'RESET': {
       const effects: EngineEffect[] = currentAct(service, state)?.mode === 'TIMECODE' ? [{ type: 'TIMECODE_STOP' }] : [];
       return { state: initialState(), effects };
@@ -390,7 +397,8 @@ export interface CameraView {
 /** CueScreen용: 카메라 n의 현재 샷 / 다음 샷 / 다음 차례까지 남은 시간 */
 export function cameraView(service: Service, state: EngineState, now: number, camera: number): CameraView {
   const cur = currentCue(service, state);
-  const mine = upcoming(service, state, now).filter((u) => u.cue.camera === camera);
+  // 가끔 쓰는 카메라(지미집 등)는 다음 차례가 한참 뒤일 수 있으므로 행사 끝까지 찾는다
+  const mine = upcoming(service, state, now, Infinity).filter((u) => u.cue.camera === camera);
   return {
     camera,
     onAir: state.programCamera === camera,

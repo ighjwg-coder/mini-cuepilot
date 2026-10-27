@@ -89,10 +89,11 @@ export function toExportFile(service: Service, exportedAt = new Date().toISOStri
 /** 디렉터 명령 (WebSocket / REST 공용) */
 export const commandSchema = z.discriminatedUnion('command', [
   z.object({ command: z.literal('GO') }),
-  z.object({ command: z.literal('BACK') }),
+  z.object({ command: z.literal('BACK'), silent: z.boolean().optional() }),
   z.object({ command: z.literal('RESET') }),
   z.object({ command: z.literal('HOLD'), on: z.boolean().optional() }),
-  z.object({ command: z.literal('JUMP'), actIndex: z.number().int(), cueIndex: z.number().int() }),
+  z.object({ command: z.literal('JUMP'), actIndex: z.number().int(), cueIndex: z.number().int(), silent: z.boolean().optional() }),
+  z.object({ command: z.literal('REHEARSAL'), on: z.boolean() }),
 ]);
 
 export function formatZodError(err: z.ZodError): string {

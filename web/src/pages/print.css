@@ -1,0 +1,94 @@
+/* 인쇄용 큐시트: 화면에서도 흰 종이처럼, 인쇄 시 도구 막대 숨김 + 카메라마다 새 페이지 */
+.pr {
+  background: #fff;
+  color: #000;
+  min-height: 100vh;
+  padding: 16px;
+  font-family: system-ui, 'Malgun Gothic', sans-serif;
+}
+.pr-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  margin-bottom: 16px;
+  background: #f3f4f6;
+  border-radius: 8px;
+}
+.pr-toolbar button {
+  padding: 6px 14px;
+  font-weight: 700;
+}
+.pr-hint {
+  color: #6b7280;
+  font-size: 12px;
+}
+.pr-page {
+  margin-bottom: 32px;
+}
+.pr-page h1 {
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+.pr-page h1 small {
+  font-size: 13px;
+  font-weight: 400;
+  color: #374151;
+  margin-left: 8px;
+}
+.pr table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.pr th,
+.pr td {
+  border: 1px solid #9ca3af;
+  padding: 4px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+.pr th {
+  background: #e5e7eb;
+}
+.pr-act-start td {
+  border-top: 2px solid #000;
+}
+.pr-cam {
+  font-weight: 800;
+  text-align: center;
+}
+.pr-shot {
+  font-weight: 800;
+  font-size: 16px;
+  white-space: nowrap;
+}
+.pr-shot small {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+}
+.pr-foot {
+  font-size: 11px;
+  color: #6b7280;
+}
+@media print {
+  .pr-toolbar {
+    display: none;
+  }
+  .pr {
+    padding: 0;
+  }
+  .pr-page {
+    break-after: page;
+    margin: 0;
+  }
+  .pr-page:last-child {
+    break-after: auto;
+  }
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+}

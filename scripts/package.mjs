@@ -97,14 +97,37 @@ copyFileSync('installer/icon.ico', join(out, 'icon.ico'));
 writeFileSync(
   join(out, 'CamCue.cmd'),
   crlf(`@echo off
-rem CamCue launcher
+rem CamCue launcher (ASCII only: Korean text in .cmd files can break on some Windows versions)
 chcp 65001 >nul
-title CamCue v${version}
+title CamCue v${version} - DO NOT CLOSE THIS WINDOW (minimize it)
 cd /d "%~dp0"
 set "CAMCUE_DATA_DIR=%LOCALAPPDATA%\\CamCue"
 set "CAMCUE_OPEN_BROWSER=1"
+rem Disable console QuickEdit: a click in this window must not freeze the server
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0quickedit-off.ps1" >nul 2>&1
+:run
 "%~dp0node\\node.exe" "%~dp0app\\dist\\server\\index.mjs"
-if errorlevel 1 pause
+if not errorlevel 1 goto :eof
+echo.
+echo  CamCue stopped unexpectedly. Restarting in 5 seconds... (close this window to quit)
+set "CAMCUE_OPEN_BROWSER=0"
+timeout /t 5 /nobreak >nul
+goto run
+`),
+);
+// 콘솔 QuickEdit 끄기: 창을 클릭해 "선택" 상태가 되면 로그 출력이 막혀 서버 전체가 멈추는 Windows 동작 방지
+writeFileSync(
+  join(out, 'quickedit-off.ps1'),
+  crlf(`$sig = '[DllImport("kernel32.dll")] public static extern IntPtr GetStdHandle(int h);
+[DllImport("kernel32.dll")] public static extern bool GetConsoleMode(IntPtr h, out uint m);
+[DllImport("kernel32.dll")] public static extern bool SetConsoleMode(IntPtr h, uint m);'
+$k = Add-Type -MemberDefinition $sig -Name Console -Namespace CamCue -PassThru
+$h = $k::GetStdHandle(-10)
+[uint32]$m = 0
+if ($k::GetConsoleMode($h, [ref]$m)) {
+  # clear ENABLE_QUICK_EDIT_MODE (0x40), set ENABLE_EXTENDED_FLAGS (0x80)
+  [void]$k::SetConsoleMode($h, (($m -band (-bnot 0x40)) -bor 0x80))
+}
 `),
 );
 if (!isWin) {

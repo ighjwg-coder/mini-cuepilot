@@ -1,8 +1,8 @@
 // GPI 접점으로 컷하는 스위처 어댑터 (SWITCHER=gpi).
 // 스위처·라우터의 GPI IN 에 "입력 N → PGM" 동작을 지정해 두고, 카메라별 출력 채널에 펄스를 준다.
 // 접점은 "눌렀다"는 신호만 보내므로 PVW·트랜지션 종류는 장비 쪽 설정을 따른다.
-import type { AtemStatus } from '../../shared/protocol';
-import type { AtemAdapter } from '../atem/types';
+import type { AtemStatus, SwitcherCaps } from '../../shared/protocol';
+import { camerasFrom, type AtemAdapter } from '../atem/types';
 import type { GpiModule } from './gpi';
 
 export interface GpiSwitcherOptions {
@@ -41,6 +41,10 @@ export class GpiSwitcherAdapter implements AtemAdapter {
     return () => this.listeners.delete(listener);
   }
 
+  capabilities(): SwitcherCaps {
+    return { cameras: camerasFrom(this.opts.cutOutputs), transition: false, macro: false, dsk: false };
+  }
+
   /** GPI 모듈 연결은 DeviceManager 가 관리 */
   async connect() {}
   async disconnect() {
@@ -71,8 +75,8 @@ export class GpiSwitcherAdapter implements AtemAdapter {
 
   async take(camera: number) {
     const ch = this.opts.cutOutputs[camera - 1];
-    if (!ch) throw new Error(`CAM ${camera} 의 GPI 출력 채널이 설정되지 않았습니다 (GPI_CUT_OUTPUTS)`);
     try {
+      if (!ch) throw new Error(`CAM ${camera} 의 GPI 출력 채널이 설정되지 않았습니다 (GPI_CUT_OUTPUTS)`);
       await this.opts.gpi.pulse(ch, this.opts.pulseMs);
     } catch (err) {
       this.lastError = (err as Error).message;
