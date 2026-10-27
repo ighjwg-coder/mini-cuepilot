@@ -193,6 +193,7 @@ function fakeModbus(state: { inputs: boolean[]; coils: boolean[]; exception?: nu
   const server: Server = createServer((sock) => {
     sockets.add(sock);
     sock.on('close', () => sockets.delete(sock));
+    sock.on('error', () => {}); // 클라이언트가 끊으면 Windows 에서는 ECONNRESET
     let buf = Buffer.alloc(0);
     sock.on('data', (chunk: Buffer) => {
       buf = Buffer.concat([buf, chunk]);
