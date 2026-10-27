@@ -14,6 +14,11 @@ export interface ShowConnection {
   lastError: string | null;
 }
 
+/** 서버 응답 확인 주기 */
+const PING_MS = 2000;
+/** 이 시간 동안 서버에서 아무 것도 못 받으면 끊긴 것으로 본다 */
+const STALE_MS = 5000;
+
 export function useShow(role: ClientRole, camera?: number): ShowConnection {
   const [connected, setConnected] = useState(false);
   const [service, setService] = useState<Service | null>(null);
@@ -28,23 +33,54 @@ export function useShow(role: ClientRole, camera?: number): ShowConnection {
     let retry = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     let pingTimer: ReturnType<typeof setInterval> | undefined;
+    let watchTimer: ReturnType<typeof setInterval> | undefined;
+
+    const scheduleReconnect = (delay: number) => {
+      clearTimeout(reconnectTimer);
+      if (!disposed) reconnectTimer = setTimeout(open, delay);
+    };
 
     const open = () => {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
       const ws = new WebSocket(`${proto}://${location.host}/ws`);
       wsRef.current = ws;
+      let lastRx = Date.now();
+      // 접속 시도 자체가 멈춰 있는 경우(와이파이 불안정)도 새로 시도
+      const connectTimer = setTimeout(() => ws.readyState !== WebSocket.OPEN && drop(1000), STALE_MS);
 
       const ping = () => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify({ type: 'ping', t: Date.now() }));
 
+      // 연결이 끊긴 것: 이 소켓은 버리고 새로 연결. 와이파이 전환 등으로 연결이 "반쯤 죽으면"
+      // 브라우저가 한참 동안 끊김을 모르므로, 서버 응답(pong)이 끊기는 것으로 직접 판단한다.
+      const drop = (delay: number) => {
+        clearTimeout(connectTimer);
+        clearInterval(pingTimer);
+        clearInterval(watchTimer);
+        ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
+        try {
+          ws.close();
+        } catch {
+          // 이미 닫힘
+        }
+        if (wsRef.current === ws) setConnected(false);
+        scheduleReconnect(delay);
+      };
+
       ws.onopen = () => {
+        clearTimeout(connectTimer);
         retry = 0;
+        lastRx = Date.now();
         setConnected(true);
         ws.send(JSON.stringify({ type: 'hello', role, camera }));
         offsetRef.current.rtt = Infinity; // 재접속 시 다시 측정
         ping();
-        pingTimer = setInterval(ping, 5000);
+        pingTimer = setInterval(ping, PING_MS);
+        watchTimer = setInterval(() => {
+          if (Date.now() - lastRx > STALE_MS) drop(0);
+        }, 1000);
       };
       ws.onmessage = (ev) => {
+        lastRx = Date.now();
         const msg = JSON.parse(ev.data) as ServerMessage;
         switch (msg.type) {
           case 'service':
@@ -73,22 +109,23 @@ export function useShow(role: ClientRole, camera?: number): ShowConnection {
             break;
         }
       };
-      ws.onclose = () => {
-        clearInterval(pingTimer);
-        setConnected(false);
-        if (!disposed) reconnectTimer = setTimeout(open, Math.min(5000, 300 * 2 ** retry++));
-      };
-      ws.onerror = () => ws.close();
+      ws.onclose = () => drop(Math.min(5000, 300 * 2 ** retry++));
+      ws.onerror = () => drop(Math.min(5000, 300 * 2 ** retry++));
     };
 
     open();
     // 폰이 잠금에서 돌아오면 즉시 재접속 시도
     const onVisible = () => {
       if (document.visibilityState === 'visible' && wsRef.current?.readyState !== WebSocket.OPEN) {
-        clearTimeout(reconnectTimer);
-        wsRef.current?.close();
         retry = 0;
-        open();
+        clearInterval(pingTimer);
+        clearInterval(watchTimer);
+        const old = wsRef.current;
+        if (old) {
+          old.onopen = old.onmessage = old.onclose = old.onerror = null;
+          old.close();
+        }
+        scheduleReconnect(0);
       }
     };
     document.addEventListener('visibilitychange', onVisible);
@@ -97,8 +134,13 @@ export function useShow(role: ClientRole, camera?: number): ShowConnection {
       disposed = true;
       clearTimeout(reconnectTimer);
       clearInterval(pingTimer);
+      clearInterval(watchTimer);
       document.removeEventListener('visibilitychange', onVisible);
-      wsRef.current?.close();
+      const ws = wsRef.current;
+      if (ws) {
+        ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
+        ws.close();
+      }
     };
   }, [role, camera]);
 

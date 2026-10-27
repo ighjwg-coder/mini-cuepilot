@@ -5,6 +5,8 @@ interface CamCueAppBridge {
   vibrate(pattern: string): void;
   /** 앱 버전 */
   version(): string;
+  /** 화면 방향 auto / portrait / landscape (v0.0.6 앱부터) */
+  setOrientation?(mode: string): void;
 }
 
 const bridge = (globalThis as { CamCueApp?: CamCueAppBridge }).CamCueApp;
@@ -30,4 +32,17 @@ export function vibrate(pattern: number[]) {
     return;
   }
   navigator.vibrate?.(pattern);
+}
+
+/** 앱이 화면 방향 고정을 지원하는가 (구버전 앱·브라우저는 아님) */
+export function canSetOrientation(): boolean {
+  return typeof bridge?.setOrientation === 'function';
+}
+
+export function setOrientation(mode: 'auto' | 'portrait' | 'landscape') {
+  try {
+    bridge?.setOrientation?.(mode);
+  } catch {
+    // 구버전 앱 — 무시
+  }
 }

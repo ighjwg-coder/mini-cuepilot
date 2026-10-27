@@ -89,6 +89,10 @@ function LivePanel({
   onCommand: ReturnType<typeof useShow>['command'];
 }) {
   const { state, tally } = snapshot;
+  const onAir = tally.onAir ?? (tally.program === null ? [] : [tally.program]);
+  // GO 직후에는 실제 탈리가 스위처를 거쳐 조금 늦게 들어오므로, 큐와 다름 경고는 잠시 뒤부터
+  const settled = !state.lastTransition || now - state.lastTransition.at > 1500;
+  const switcherDown = snapshot.atem.mode !== 'disabled' && !snapshot.atem.connected;
   const act = currentAct(service, state);
   const cue = currentCue(service, state);
   const next = upcoming(service, state, now, 1)[0] ?? null;
@@ -172,16 +176,21 @@ function LivePanel({
             RESET
           </button>
         </div>
-        {tally.source === 'gpi' && state.programCamera !== null && tally.program !== state.programCamera && (
+        {switcherDown && (
+          <div className="switcher-down">
+            ⚠️ 스위처 연결 끊김 — GO 를 눌러도 컷이 나가지 않고 큐만 넘어갑니다. 카메라맨 폰 탈리는 큐 기준 추정입니다.
+          </div>
+        )}
+        {settled && tally.source === 'gpi' && state.programCamera !== null && !onAir.includes(state.programCamera) && (
           <div className="tally-mismatch">
-            ⚠️ 실제 송출 {tally.program ? `CAM ${tally.program}` : '없음'} — 큐는 CAM {state.programCamera}
+            ⚠️ 실제 송출 {onAir.length ? onAir.map((n) => `CAM ${n}`).join(' + ') : '없음'} — 큐는 CAM {state.programCamera}
           </div>
         )}
         <div className="tally-grid">
           {Array.from({ length: 8 }, (_, i) => i + 1).map((n) => (
-            <div key={n} className={tally.program === n ? 'pgm' : tally.preview === n ? 'pvw' : ''}>
+            <div key={n} className={onAir.includes(n) ? 'pgm' : tally.preview === n ? 'pvw' : ''}>
               <span style={{ color: cameraColor(n) }}>CAM {n}</span>
-              <small>{tally.program === n ? 'PGM' : tally.preview === n ? 'PVW' : ' '}</small>
+              <small>{onAir.includes(n) ? 'PGM' : tally.preview === n ? 'PVW' : ' '}</small>
             </div>
           ))}
         </div>

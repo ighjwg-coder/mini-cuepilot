@@ -168,7 +168,13 @@ export function DevicesPage() {
               <CamChip n={snap.tally.program} /> <span className="dv-muted">다음</span> <CamChip n={snap.tally.preview} />
             </div>
             <div className="dv-status-sub">
-              {snap.tally.source === 'gpi' ? 'GPI 실제 신호 기준' : snap.tally.source === 'atem' ? '스위처 보고 기준' : '큐 진행 기준 (장비 미연결)'}
+              {snap.tally.source === 'gpi'
+                ? 'GPI 실제 신호 기준'
+                : snap.tally.source === 'atem'
+                  ? sw.mode === 'ikegami' || sw.mode === 'gpi'
+                    ? '캠큐가 보낸 전환 명령 기준 (패널 수동 컷은 반영 안 됨)'
+                    : '스위처 보고 기준'
+                  : '큐 진행 기준 (장비 미연결)'}
             </div>
           </div>
           {snap.errors.length > 0 && (
@@ -317,7 +323,7 @@ export function DevicesPage() {
             {kind === 'gpi' && (
               <>
                 <p className="dv-hint">
-                  GPI 모듈의 출력 접점을 장비의 GPI 입력에 연결하고, 장비 쪽에 "입력 N → 송출" 동작을 지정해 두세요. 모듈 주소는 아래 ③ 에서 설정합니다.
+                  GPI 모듈의 출력 접점을 장비의 GPI 입력에 연결하고, 장비 쪽에 "입력 N → 송출" 동작을 지정해 두세요 (이케가미: Setup → GPI → GPI-IN 에 카메라별 Button Memory). 모듈 주소는 아래 ③ 에서 설정합니다.
                 </p>
                 <Field label="카메라별 출력 채널" help="컷할 때 펄스를 보낼 모듈 출력(DO) 번호.">
                   <CamGrid value={form.GPI_CUT_OUTPUTS} prefix="DO" onChange={(v) => set({ GPI_CUT_OUTPUTS: v })} />
@@ -342,6 +348,11 @@ export function DevicesPage() {
             label="GPI 모듈로 실제 송출 신호 읽기"
             help="스위처의 탈리 접점을 읽어 폰 화면의 빨간 테두리를 실제 송출 기준으로 표시합니다. 패널에서 직접 컷해도 반영됩니다."
           />
+          {!tallyOn && kind === 'ikegami' && (
+            <p className="dv-hint">
+              꺼 두어도 됩니다. 이때 탈리는 <b>캠큐가 보낸 전환 명령</b> 기준으로 표시되고, 조작 패널에서 직접 컷한 것은 반영되지 않습니다. GPI 입력 모듈이 있을 때만 켜세요.
+            </p>
+          )}
 
           {needGpi && (
             <>
@@ -352,7 +363,7 @@ export function DevicesPage() {
                 help="아래 채널 버튼을 눌러 신호를 직접 켜고 끌 수 있습니다."
               />
               {form.GPI_HOST !== MOCK && (
-                <Field label="GPI 모듈 IP 주소" help="Modbus TCP 입력 모듈 (ADAM-6050, ioLogik E1210 등). 포트가 502 가 아니면 IP:포트.">
+                <Field label="GPI 모듈 IP 주소" help="Modbus TCP 입출력 모듈 (Waveshare Modbus POE ETH IO 8CH, ADAM-6050 등). 포트가 502 가 아니면 IP:포트. Waveshare 는 Vircom 에서 프로토콜을 Modbus TCP 로 바꿔 두세요.">
                   <input className="dv-input" value={form.GPI_HOST} onChange={(e) => set({ GPI_HOST: e.target.value })} placeholder="192.168.0.50" />
                 </Field>
               )}

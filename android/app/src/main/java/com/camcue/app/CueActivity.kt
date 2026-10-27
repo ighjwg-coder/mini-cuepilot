@@ -3,6 +3,7 @@ package com.camcue.app
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -23,12 +24,14 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.TextView
+import android.widget.Toast
 
 /**
  * CueScreen 전체 화면. 서버의 /cam/N 웹 화면을 그대로 띄우고, 앱이 하는 일:
  *  - 화면 꺼짐 방지 (브라우저의 HTTP 접속에서는 보장되지 않던 부분)
  *  - 진동 (웹 화면이 window.CamCueApp.vibrate 로 요청)
  *  - 서버가 꺼지거나 PC IP 가 바뀌면 자동으로 다시 찾아 재접속
+ *  - 화면 방향 고정 (웹 화면 설정에서 선택), 뒤로 가기는 두 번 눌러야 닫힘
  */
 class CueActivity : Activity() {
     companion object {
@@ -49,6 +52,7 @@ class CueActivity : Activity() {
     private var failures = 0
     private var stopped = false
     private var checking = false
+    private var lastBack = 0L
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,6 +101,19 @@ class CueActivity : Activity() {
     }
 
     private fun url() = "$proto://$host:$port/cam/$camera"
+
+    // 생방송 중 손이 스쳐 큐 화면이 닫히지 않도록 2초 안에 두 번 눌러야 닫는다
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        val now = System.currentTimeMillis()
+        if (now - lastBack < 2000) {
+            @Suppress("DEPRECATION")
+            super.onBackPressed()
+        } else {
+            lastBack = now
+            Toast.makeText(this, "한 번 더 누르면 큐 화면을 닫습니다", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     override fun onResume() {
         super.onResume()
@@ -203,7 +220,7 @@ class CueActivity : Activity() {
     }
 
     /** 웹 화면(CueScreen)에서 window.CamCueApp 으로 부르는 기능 */
-    class Bridge(private val ctx: Context) {
+    class Bridge(private val ctx: Activity) {
         @JavascriptInterface
         fun vibrate(pattern: String) {
             val parts = pattern.split(',').mapNotNull { it.trim().toLongOrNull() }.filter { it in 0..5000 }
@@ -226,5 +243,16 @@ class CueActivity : Activity() {
 
         @JavascriptInterface
         fun version(): String = BuildConfigCompat.versionName(ctx)
+
+        /** auto / portrait / landscape — 카메라에 비스듬히 달아도 화면이 돌아가지 않게 */
+        @JavascriptInterface
+        fun setOrientation(mode: String) {
+            val o = when (mode) {
+                "portrait" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                "landscape" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
+            ctx.runOnUiThread { if (ctx.requestedOrientation != o) ctx.requestedOrientation = o }
+        }
     }
 }

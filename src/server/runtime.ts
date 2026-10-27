@@ -137,14 +137,16 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
   tally(): Tally {
     const atem = this.opts.atem.status();
     const next = () => (this._service ? upcoming(this._service, this._state, this.now(), 1)[0]?.cue.camera ?? null : null);
-    // 실제 탈리 신호가 있으면 PGM 은 그 값, PVW 는 스위처 보고값(없으면 다음 큐)
+    const one = (n: number | null) => (n === null ? [] : [n]);
+    // 실제 탈리 신호가 있으면 PGM 은 그 값(디졸브 중엔 여러 대), PVW 는 스위처 보고값(없으면 다음 큐)
     if (this.tallyInput?.active()) {
-      const program = this.tallyInput.program();
+      const onAir = this.tallyInput.onAir();
+      const program = onAir[0] ?? null;
       const preview = atem.connected && atem.previewInput !== program ? atem.previewInput : next();
-      return { program, preview: preview === program ? null : preview, source: 'gpi' };
+      return { program, preview: preview !== null && onAir.includes(preview) ? null : preview, onAir, source: 'gpi' };
     }
-    if (atem.connected) return { program: atem.programInput, preview: atem.previewInput, source: 'atem' };
-    return { program: this._state.programCamera, preview: next(), source: 'engine' };
+    if (atem.connected) return { program: atem.programInput, preview: atem.previewInput, onAir: one(atem.programInput), source: 'atem' };
+    return { program: this._state.programCamera, preview: next(), onAir: one(this._state.programCamera), source: 'engine' };
   }
 
   snapshot(): ShowSnapshot {
@@ -189,7 +191,11 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
   /** ATEM 명령은 순서 보장을 위해 직렬 큐로 실행. 실패해도 쇼 진행은 계속된다 */
   private enqueueAtem(label: string, fn: () => Promise<void>) {
     this.atemQueue = this.atemQueue.then(async () => {
-      if (!this.opts.atem.status().connected) return;
+      const status = this.opts.atem.status();
+      if (!status.connected) {
+        if (status.mode !== 'disabled') this.opts.log(`스위처 미연결 — 명령을 보내지 못함: ${label}`);
+        return;
+      }
       try {
         await fn();
       } catch (err) {

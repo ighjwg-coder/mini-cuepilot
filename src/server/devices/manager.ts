@@ -4,7 +4,7 @@ import type { DeviceSettings, DevicesSnapshot, SerialLogEntry } from '../../shar
 import type { Tally } from '../../shared/protocol';
 import { DisabledAtemAdapter, MockAtemAdapter, RealAtemAdapter, type AtemAdapter } from '../atem';
 import { readDeviceSettings, resolveDevices, updateConfigFile, type ResolvedDevices } from './config';
-import { DisabledGpi, MockGpi, ModbusGpi, programFromInputs, type GpiModule } from './gpi';
+import { DisabledGpi, MockGpi, ModbusGpi, onAirFromInputs, type GpiModule } from './gpi';
 import { GpiSwitcherAdapter } from './gpiSwitcher';
 import { IkegamiRouterAdapter, parseHex } from './ikegami';
 import { MockSerialLink, NodeSerialLink, type Parity, type SerialLink } from './serial';
@@ -14,7 +14,8 @@ import { SwitchableAdapter } from './switchable';
 export interface TallyInput {
   /** 지금 이 입력을 탈리 기준으로 써야 하는가 (설정 + 연결 상태) */
   active(): boolean;
-  program(): number | null;
+  /** 탈리가 켜진 카메라 전부 (작은 번호부터) */
+  onAir(): number[];
   onChange(listener: () => void): () => void;
 }
 
@@ -23,7 +24,7 @@ export interface DeviceManagerOptions {
   /** 설정 저장 파일. null 이면 저장하지 않음 (테스트) */
   configPath: string | null;
   serialFactory?: (path: string, opts: { baudRate: number; parity: Parity }) => SerialLink;
-  gpiFactory?: (cfg: Exclude<ResolvedDevices['gpi'], { kind: 'none' }>, diCount: number) => GpiModule;
+  gpiFactory?: (cfg: Exclude<ResolvedDevices['gpi'], { kind: 'none' }>, diCount: number, resetOutputs: number[]) => GpiModule;
   atemFactory?: (cfg: Extract<ResolvedDevices['switcher'], { kind: 'atem' }>) => AtemAdapter;
   log?: (msg: string, err?: unknown) => void;
 }
@@ -50,7 +51,7 @@ export class DeviceManager {
     const self = this;
     this.tallyInput = {
       active: () => self.resolved.tally.source === 'gpi' && self.gpi.status().connected,
-      program: () => programFromInputs(self.gpi.status().inputs, self.resolved.tally.inputs, self.resolved.tally.invert),
+      onAir: () => onAirFromInputs(self.gpi.status().inputs, self.resolved.tally.inputs, self.resolved.tally.invert),
       onChange: (l) => {
         self.tallyListeners.add(l);
         return () => self.tallyListeners.delete(l);
@@ -143,7 +144,8 @@ export class DeviceManager {
     this.gpiUnsub();
     await this.gpi.disconnect().catch(() => {});
     const diCount = Math.max(8, ...cfg.tally.inputs);
-    this.gpi = cfg.gpi.kind === 'none' ? new DisabledGpi() : (this.opts.gpiFactory ?? defaultGpi)(cfg.gpi, diCount);
+    const resetOutputs = cfg.switcher.kind === 'gpi' ? cfg.switcher.cutOutputs.filter((n) => n > 0) : [];
+    this.gpi = cfg.gpi.kind === 'none' ? new DisabledGpi() : (this.opts.gpiFactory ?? defaultGpi)(cfg.gpi, diCount, resetOutputs);
     this.gpiUnsub = this.gpi.onChange(() => this.tallyListeners.forEach((l) => l()));
     this.gpi.connect().catch((err) => this.opts.log?.('GPI 모듈 연결 실패', err));
 
@@ -182,9 +184,9 @@ function defaultSerial(path: string, opts: { baudRate: number; parity: Parity })
   return new NodeSerialLink(path, opts);
 }
 
-function defaultGpi(cfg: Exclude<ResolvedDevices['gpi'], { kind: 'none' }>, diCount: number): GpiModule {
+function defaultGpi(cfg: Exclude<ResolvedDevices['gpi'], { kind: 'none' }>, diCount: number, resetOutputs: number[]): GpiModule {
   if (cfg.kind === 'mock') return new MockGpi(Math.max(16, diCount));
-  return new ModbusGpi({ ...cfg, diCount });
+  return new ModbusGpi({ ...cfg, diCount, resetOutputs });
 }
 
 function defaultAtem(cfg: Extract<ResolvedDevices['switcher'], { kind: 'atem' }>): AtemAdapter {

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { DEVICE_DEFAULTS } from '../src/shared/devices';
 import { readDeviceSettings, resolveDevices, updateConfigFile } from '../src/server/devices/config';
-import { MockGpi, ModbusGpi, programFromInputs } from '../src/server/devices/gpi';
+import { MockGpi, ModbusGpi, onAirFromInputs, programFromInputs } from '../src/server/devices/gpi';
 import { GpiSwitcherAdapter } from '../src/server/devices/gpiSwitcher';
 import { encodeTake, IkegamiRouterAdapter, parseHex, parseTakeTemplate, toHex } from '../src/server/devices/ikegami';
 import { DeviceManager } from '../src/server/devices/manager';
@@ -96,6 +96,14 @@ describe('장비 설정 해석', () => {
     // 반전: 꺼진 입력이 ON AIR — 첫 번째로 꺼진 채널의 카메라
     expect(programFromInputs([true, false, true], [1, 2, 3], true)).toBe(2);
     expect(programFromInputs(null, [1], false)).toBe(null);
+  });
+
+  it('여러 카메라가 동시에 켜지면 전부 ON AIR (디졸브·키)', () => {
+    expect(onAirFromInputs([true, false, true, false], [1, 2, 3, 4], false)).toEqual([1, 3]);
+    expect(onAirFromInputs([false, true, true], [3, 2], false)).toEqual([1, 2]);
+    expect(onAirFromInputs([true, true], [1, 2], true)).toEqual([]);
+    expect(onAirFromInputs(null, [1], false)).toEqual([]);
+    expect(programFromInputs([false, true, true], [3, 2], false)).toBe(1);
   });
 });
 
@@ -272,6 +280,28 @@ describe('Modbus TCP', () => {
     await gpi.disconnect();
     expect(gpi.status().connected).toBe(false);
   });
+
+  it('ModbusGpi: 켜진 채 남은 컷 출력은 연결되면 끈다', async () => {
+    state.coils[1] = true; // 이전 실행에서 끄지 못하고 남은 출력 (채널 2)
+    state.coils[6] = true; // 컷 출력이 아닌 채널은 건드리지 않음
+    const gpi = new ModbusGpi({
+      host: '127.0.0.1',
+      port,
+      unitId: 1,
+      diFunction: 2,
+      diAddress: 0,
+      diCount: 8,
+      doAddress: 0,
+      pollMs: 10,
+      resetOutputs: [1, 2],
+    });
+    await gpi.connect();
+    await until(() => gpi.status().connected);
+    expect(state.coils[1]).toBe(false);
+    expect(state.coils[6]).toBe(true);
+    await gpi.disconnect();
+    state.coils.fill(false);
+  });
 });
 
 // ─────────────────────────────────────────────
@@ -315,8 +345,15 @@ describe('DeviceManager + 실제 탈리 신호', () => {
     const sources: string[] = [];
     runtime.on('state', (s) => sources.push(`${s.tally.source}:${s.tally.program}`));
     m.setMockInput(4, true); // DI 4 = CAM 2
-    expect(runtime.tally()).toMatchObject({ source: 'gpi', program: 2 });
+    expect(runtime.tally()).toMatchObject({ source: 'gpi', program: 2, onAir: [2] });
     expect(sources.at(-1)).toBe('gpi:2');
+
+    // 디졸브 중: CAM 2 와 CAM 3 이 동시에 ON AIR — 둘 다 탈리, PVW 는 그 둘이 아닌 값
+    m.setMockInput(5, true); // DI 5 = CAM 3
+    expect(runtime.tally()).toMatchObject({ source: 'gpi', program: 2, onAir: [2, 3] });
+    expect(runtime.tally().preview === 2 || runtime.tally().preview === 3).toBe(false);
+    m.setMockInput(4, false);
+    expect(runtime.tally()).toMatchObject({ program: 3, onAir: [3] });
 
     // 설정에서 탈리 기준을 스위처로 바꾸면 ATEM(가상) 보고값
     await m.apply({ TALLY_SOURCE: 'switcher' });
