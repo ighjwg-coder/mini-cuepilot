@@ -48,7 +48,9 @@ export class ModbusTcpClient {
         this.socket = socket;
         resolve();
       });
-      socket.once('error', (err) => {
+      // 연결 뒤에도 오류(모듈 재부팅·랜선 분리 → ECONNRESET 등)를 항상 받아야 한다.
+      // 처리하지 않은 소켓 오류는 프로세스 전체를 멈추게 한다. 정리는 이어서 오는 'close' 에서
+      socket.on('error', (err) => {
         clearTimeout(timer);
         reject(new ModbusError(`연결 실패: ${err.message}`));
       });
