@@ -16,6 +16,7 @@ import type { ConnectedClient, ShowSnapshot } from '@shared/protocol';
 import type { Act, Cue, Service } from '@shared/types';
 import { AtemBadge, CamClients, ConnectionBadge, TimecodeBadge, camCounts } from '../components/StatusBadges';
 import { TopBar } from '../components/TopBar';
+import { api } from '../lib/api';
 import { MODE_LABEL, SHOT_LABEL, cameraColor, formatClock } from '../lib/format';
 import { askPin } from '../lib/pin';
 import { useShow, useTicker } from '../lib/useShow';
@@ -196,9 +197,22 @@ function LivePanel({
 
   return (
     <>
-      <div className={`cue-card live ${state.held ? 'held' : ''}`}>
+      <Readiness service={service} snapshot={snapshot} clients={clients} expected={expected} />
+      <label className={`rehearsal-toggle ${snapshot.rehearsal ? 'on' : ''}`}>
+        <input
+          type="checkbox"
+          checked={!!snapshot.rehearsal}
+          disabled={!canControl}
+          onChange={(e) => onCommand({ command: 'REHEARSAL', on: e.target.checked })}
+        />
+        <span>
+          <b>리허설 모드</b> — 큐는 진행하지만 스위처에는 컷을 <b>보내지 않습니다</b> (예배 전 송출 중 연습). 카메라맨 폰에 "리허설" 표시,
+          GO 사이 실제 걸린 시간이 기록돼 에디터에서 MANUAL 큐 길이로 채울 수 있습니다
+        </span>
+      </label>
+      <div className={`cue-card live ${state.held ? 'held' : ''} ${snapshot.rehearsal ? 'rehearsal' : ''}`}>
         <div className="label">
-          {standby ? 'STANDBY' : 'ON AIR'} {state.held && <span style={{ color: 'var(--hold)' }}>· HOLD</span>}
+          {standby ? 'STANDBY' : snapshot.rehearsal ? 'REHEARSAL' : 'ON AIR'} {state.held && <span style={{ color: 'var(--hold)' }}>· HOLD</span>}
         </div>
         {cue && act ? (
           <>
@@ -279,7 +293,9 @@ function LivePanel({
       <div>
         <div className="row muted" style={{ marginBottom: 6, fontSize: 12 }}>
           탈리 (
-          {tally.source === 'gpi'
+          {snapshot.rehearsal
+            ? '리허설 — 큐 기준, 실제 송출은 카메라 탈리 램프'
+            : tally.source === 'gpi'
             ? 'GPI 실제 신호'
             : tally.source === 'atem'
               ? '스위처 상태'
@@ -320,8 +336,91 @@ function LivePanel({
           ))}
         </div>
         {log.length > 0 && <CommandLog log={log} now={now} />}
+        <RunLogs />
       </div>
     </>
+  );
+}
+
+/** 예배 전 점검: 모두 ✓ 면 초록 */
+function Readiness({
+  service,
+  snapshot,
+  clients,
+  expected,
+}: {
+  service: Service;
+  snapshot: ShowSnapshot;
+  clients: ConnectedClient[];
+  expected: number[];
+}) {
+  const atem = snapshot.atem;
+  const counts = camCounts(clients);
+  const items: Array<{ ok: boolean; warn?: boolean; text: string }> = [
+    { ok: service.acts.some((a) => a.cues.length > 0), text: `행사: ${service.title}` },
+    {
+      ok: atem.mode === 'disabled' || atem.connected,
+      warn: atem.mode === 'disabled',
+      text: atem.mode === 'disabled' ? '스위처: 사용 안 함 (큐만 진행)' : atem.connected ? `스위처 연결 (${atem.mode.toUpperCase()})` : '스위처 연결 안 됨',
+    },
+    {
+      ok: snapshot.tally.source === 'gpi' || snapshot.tally.source === 'atem',
+      warn: true,
+      text:
+        snapshot.tally.source === 'gpi' || snapshot.tally.source === 'atem'
+          ? '탈리: 실측'
+          : snapshot.tally.source === 'command'
+            ? '탈리: 명령 기준 (패널 수동 컷 미반영)'
+            : '탈리: 큐 기준 추정',
+    },
+    {
+      ok: expected.length > 0 && expected.every((c) => counts.get(c) === 1),
+      text:
+        expected.length === 0
+          ? '카메라맨 폰: (카메라 없음)'
+          : `카메라맨 폰 ${expected.filter((c) => counts.has(c)).length}/${expected.length}` +
+            ([...counts.values()].some((n) => n > 1) ? ' · 같은 번호 중복' : ''),
+    },
+    { ok: !snapshot.rehearsal, warn: true, text: snapshot.rehearsal ? '리허설 모드 켜짐 — 본 예배 전에 끄세요' : '리허설 모드 꺼짐' },
+  ];
+  const allOk = items.every((i) => i.ok);
+  const [open, setOpen] = useState(true);
+  return (
+    <div className={`readiness ${allOk ? 'ok' : ''}`}>
+      <button className="readiness-head" onClick={() => setOpen(!open)}>
+        {allOk ? '✅ 준비 완료' : '⚠️ 준비 상태 확인'} {open ? '▴' : '▾'}
+      </button>
+      {open && (
+        <div className="readiness-items">
+          {items.map((i) => (
+            <span key={i.text} className={i.ok ? 'ok' : i.warn ? 'warn' : 'bad'}>
+              {i.ok ? '✓' : i.warn ? '!' : '✕'} {i.text}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 진행 기록(CSV) 내려받기 */
+function RunLogs() {
+  const [logs, setLogs] = useState<Array<{ name: string; size: number }> | null>(null);
+  const load = () => api.logs().then(setLogs).catch(() => setLogs([]));
+  return (
+    <details className="cmd-log" onToggle={(e) => (e.currentTarget as HTMLDetailsElement).open && load()}>
+      <summary>진행 기록 내려받기 (날짜별 CSV — 예배 후 피드백용)</summary>
+      {logs === null && <div className="muted">불러오는 중…</div>}
+      {logs?.length === 0 && <div className="muted">아직 기록이 없습니다</div>}
+      {logs?.slice(0, 10).map((l) => (
+        <div key={l.name}>
+          <a href={`/api/logs/${l.name}`} download>
+            {l.name}
+          </a>{' '}
+          <span className="muted">{Math.ceil(l.size / 1024)}KB</span>
+        </div>
+      ))}
+    </details>
   );
 }
 

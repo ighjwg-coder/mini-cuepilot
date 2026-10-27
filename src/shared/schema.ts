@@ -93,6 +93,7 @@ export const commandSchema = z.discriminatedUnion('command', [
   z.object({ command: z.literal('RESET') }),
   z.object({ command: z.literal('HOLD'), on: z.boolean().optional() }),
   z.object({ command: z.literal('JUMP'), actIndex: z.number().int(), cueIndex: z.number().int(), silent: z.boolean().optional() }),
+  z.object({ command: z.literal('REHEARSAL'), on: z.boolean() }),
 ]);
 
 export function formatZodError(err: z.ZodError): string {

@@ -1,7 +1,7 @@
 // 설치판(Windows 패키지) 실행 준비.
 // 런처가 CAMCUE_DATA_DIR 를 지정하면 설정·DB 를 그 폴더(기본 %LOCALAPPDATA%\CamCue)에 둔다.
 // 앱 폴더(Program Files)는 쓰기 불가일 수 있고, 업데이트/재설치해도 큐시트가 유지되어야 하기 때문.
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { DEFAULT_PORT } from './listen';
 
@@ -110,6 +110,30 @@ export function prepareDataDir(dataDir: string, appDir: string): DataDirResult {
   // Prisma(SQLite)는 Windows 경로도 슬래시 표기를 권장
   process.env.DATABASE_URL = `file:${dbPath.replace(/\\/g, '/')}`;
   return { configPath, dbPath, freshDb, migratedFrom };
+}
+
+/** 자동 백업 보관 개수 */
+export const BACKUP_KEEP = 14;
+
+/**
+ * DB 자동 백업: 서버 시작 시(DB 를 열기 전) backup\camcue-YYYY-MM-DD_HHMM.db 로 복사, 최근 keep 개만 보관.
+ * 복원: 캠큐를 끄고 원하는 백업 파일을 camcue.db 로 바꿔 넣으면 된다.
+ * 반환: 만든 백업 경로 (DB 가 없으면 null)
+ */
+export function backupDb(dbPath: string, backupDir: string, keep = BACKUP_KEEP, now = new Date()): string | null {
+  if (!existsSync(dbPath)) return null;
+  mkdirSync(backupDir, { recursive: true });
+  const p = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}_${p(now.getHours())}${p(now.getMinutes())}`;
+  const target = join(backupDir, `camcue-${stamp}.db`);
+  copyFileSync(dbPath, target);
+  const old = readdirSync(backupDir)
+    .filter((n) => /^camcue-\d{4}-\d{2}-\d{2}_\d{4}\.db$/.test(n))
+    .sort()
+    .reverse()
+    .slice(keep);
+  for (const n of old) rmSync(join(backupDir, n), { force: true });
+  return target;
 }
 
 /** 설정 파일의 PORT 값을 바꿔 저장 (포트 자동 변경 시 다음 실행부터 같은 주소 유지) */

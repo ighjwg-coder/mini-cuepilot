@@ -58,6 +58,9 @@ export const api = {
   /** 이미 라이브인 행사는 진행 위치 유지. restart = 처음(STANDBY)부터 */
   loadShow: (serviceId: string, restart = false) => request<ShowSnapshot>('POST', '/api/show/load', { serviceId, restart }),
   command: (cmd: ShowCommand) => request<ShowSnapshot>('POST', '/api/show/command', cmd),
+  /** 큐 id → 실제 걸린 시간(초) */
+  measured: () => request<Record<string, number>>('GET', '/api/show/measured'),
+  logs: () => request<Array<{ name: string; size: number }>>('GET', '/api/logs'),
   // 장비 연결
   devices: () => request<DevicesSnapshot>('GET', '/api/devices'),
   saveDeviceSettings: (settings: Partial<DeviceSettings>) => request<DevicesSnapshot>('PUT', '/api/devices/settings', settings),

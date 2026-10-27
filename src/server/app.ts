@@ -1,5 +1,6 @@
 // Fastify 앱 조립: REST API + WebSocket + (빌드된) 웹 정적 파일
 import { createReadStream, existsSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { hostname, networkInterfaces } from 'node:os';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -10,6 +11,7 @@ import type { DeviceManager } from './devices/manager';
 import { listSerialPorts } from './devices/serial';
 import { createAccessPolicy, type AccessPolicy } from './access';
 import { ConflictError, type ServiceRepo } from './repo';
+import { LOG_NAME, listRunLogs } from './runLog';
 import type { ShowRuntime } from './runtime';
 import { attachWebSocket } from './ws';
 
@@ -28,6 +30,8 @@ export interface AppDeps {
   https?: { key: Buffer; cert: Buffer };
   /** 제어 권한 (기본: 이 PC 에서만 + CAMCUE_PIN) */
   access?: AccessPolicy;
+  /** 진행 기록(CSV) 폴더. 있으면 /api/logs 로 내려받기 제공 */
+  logDir?: string;
 }
 
 class HttpError extends Error {
@@ -54,6 +58,7 @@ export async function buildApp({
   logger = false,
   https,
   access = createAccessPolicy(process.env.CAMCUE_PIN),
+  logDir,
 }: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger, bodyLimit: 5 * 1024 * 1024, ...(https ? { https } : {}) }) as unknown as FastifyInstance;
   const pinOf = (req: { headers: Record<string, string | string[] | undefined> }) => {
@@ -183,6 +188,20 @@ export async function buildApp({
     if (runtime.service?.id === serviceId && restart !== true) runtime.updateService(service);
     else runtime.load(service);
     return runtime.snapshot();
+  });
+
+  /** 큐별 실제 걸린 시간(초) — 에디터의 [측정값으로 길이 채우기] */
+  app.get('/api/show/measured', async () => runtime.measuredDurations());
+
+  // ── 진행 기록 (CSV) ──
+  app.get('/api/logs', async () => (logDir ? listRunLogs(logDir) : []));
+  app.get<{ Params: { name: string } }>('/api/logs/:name', async (req, reply) => {
+    const { name } = req.params;
+    if (!logDir || !LOG_NAME.test(name) || !existsSync(join(logDir, name))) throw new HttpError(404, '기록이 없습니다');
+    return reply
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-disposition', `attachment; filename="${name}"`)
+      .send(createReadStream(join(logDir, name)));
   });
 
   /** HTTP 명령 (Bitfocus Companion / Stream Deck 등 외부 컨트롤러 연동용) */

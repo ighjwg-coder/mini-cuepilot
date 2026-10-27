@@ -10,7 +10,9 @@ export type ShowCommand =
   | { command: 'HOLD'; on?: boolean }
   | { command: 'RESET' }
   /** silent = 큐 위치만 옮기고 스위처 컷은 보내지 않음 (위치 복구용) */
-  | { command: 'JUMP'; actIndex: number; cueIndex: number; silent?: boolean };
+  | { command: 'JUMP'; actIndex: number; cueIndex: number; silent?: boolean }
+  /** 리허설 모드: 큐는 진행하지만 스위처에는 아무 명령도 보내지 않음 (예배 전 송출 중 연습) */
+  | { command: 'REHEARSAL'; on: boolean };
 
 /**
  * 스위처(영상 전환 장비) 연결 상태. 이름은 v0.0.1 호환을 위해 AtemStatus 유지.
@@ -78,6 +80,8 @@ export interface ShowSnapshot {
   /** 최근 스위처 명령 결과 (새 것이 뒤) */
   commandLog: CommandLogEntry[];
   switcherCaps: SwitcherCaps;
+  /** 리허설 모드 (컷 안 보냄, 탈리는 큐 기준) */
+  rehearsal: boolean;
 }
 
 export interface ConnectedClient {

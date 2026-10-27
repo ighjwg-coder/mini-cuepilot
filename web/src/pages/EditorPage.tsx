@@ -98,6 +98,20 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
   const [doc, setDoc] = useState<Service | null>(null);
   const [saved, setSaved] = useState<Service | null>(null);
   const [sel, setSel] = useState<Selection | null>(null);
+  /** Ctrl/Shift+클릭으로 여러 개 고른 큐 id (2개 이상이면 일괄 편집) */
+  const [multi, setMulti] = useState<Set<string>>(new Set());
+  const selectCue = (actId: string, cueId: string, additive: boolean) => {
+    if (additive) {
+      setMulti((m) => {
+        const n = new Set(m.size === 0 && sel ? [sel.cueId] : m);
+        if (n.has(cueId)) n.delete(cueId);
+        else n.add(cueId);
+        return n;
+      });
+    } else setMulti(new Set());
+    setSel({ actId, cueId });
+  };
+  const bulk = multi.size > 1;
   const [pxPerSec, setPxPerSec] = useState(8);
   const [message, setMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -215,6 +229,14 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
           return redo();
         }
       }
+      if (doc && bulk && e.key === 'Delete' && !isTyping(e.target)) {
+        change(ops.deleteCues(doc, multi));
+        setMessage({ kind: 'ok', text: `큐 ${multi.size}개를 삭제했습니다 — Ctrl+Z 로 되돌리기` });
+        setMulti(new Set());
+        setSel(null);
+        return;
+      }
+      if (e.key === 'Escape' && bulk) return setMulti(new Set());
       if (!doc || !pos || isTyping(e.target)) return;
       if (e.key === 'Delete') {
         change(ops.deleteCue(doc, pos.a, pos.c));
@@ -241,6 +263,22 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
       setMessage({ kind: 'ok', text: `"${s.title}" 을(를) 새 행사로 가져왔습니다` });
     } catch (e) {
       setMessage({ kind: 'err', text: `가져오기 실패: ${(e as Error).message}` });
+    }
+  };
+
+  const fillDurations = async () => {
+    if (!doc) return;
+    try {
+      const measured = await api.measured();
+      const known = Object.keys(measured).length;
+      if (known === 0) return setMessage({ kind: 'err', text: '측정된 시간이 없습니다 — 디렉터에서 리허설 모드로 GO 하며 한 번 진행해 보세요' });
+      const overwrite = confirm('이미 길이가 적힌 큐도 측정값으로 바꿀까요?\n[확인] 모두 바꾸기   [취소] 비어 있는 큐만 채우기');
+      const r = ops.fillDurations(doc, measured, overwrite);
+      if (r.changed === 0) return setMessage({ kind: 'ok', text: '바꿀 큐가 없습니다 (MANUAL 순서의 측정된 큐만 대상)' });
+      change(r.service);
+      setMessage({ kind: 'ok', text: `큐 ${r.changed}개의 길이를 채웠습니다 — 확인 후 저장하세요 (Ctrl+Z 로 되돌리기)` });
+    } catch (e) {
+      setMessage({ kind: 'err', text: (e as Error).message });
     }
   };
 
@@ -307,6 +345,14 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
             JSON 내보내기
           </button>
         </a>
+        <button onClick={fillDurations} title="리허설·지난 진행에서 GO 사이 실제 걸린 시간으로 MANUAL 순서의 큐 길이를 채웁니다 (≈ 카운트다운이 정확해짐)">
+          측정 시간으로 길이 채우기
+        </button>
+        <a href={`/print/${serviceId}`} target="_blank" rel="noreferrer">
+          <button disabled={dirty} title={dirty ? '먼저 저장하세요' : '카메라별 종이 큐시트 (비상용) — 인쇄/PDF'}>
+            카메라별 인쇄
+          </button>
+        </a>
         <button onClick={() => setImportingActs(true)} title="다른 행사의 순서(찬양 곡 등)를 큐째로 복사해 와서 끝에 붙입니다">
           다른 행사에서 순서 가져오기
         </button>
@@ -354,9 +400,10 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
               total={doc.acts.length}
               pxPerSec={pxPerSec}
               selectedCueId={sel?.actId === act.id ? sel.cueId : undefined}
+              multi={multi}
               liveCueId={liveCueId}
               caps={caps}
-              onSelect={(cueId) => setSel({ actId: act.id, cueId })}
+              onSelect={(cueId, additive) => selectCue(act.id, cueId, additive)}
               onChange={(patch) => change(ops.updateAct(doc, a, patch), `act:${act.id}:${Object.keys(patch).join()}`)}
               onMove={(to) => change(ops.moveAct(doc, a, to))}
               onDelete={() => {
@@ -378,7 +425,21 @@ function ServiceEditor({ serviceId }: { serviceId: string }) {
         </div>
 
         <aside className="inspector">
-          {pos ? (
+          {bulk ? (
+            <BulkInspector
+              service={doc}
+              ids={multi}
+              caps={caps}
+              onChange={(patch) => change(ops.updateCues(doc, multi, patch))}
+              onDelete={() => {
+                change(ops.deleteCues(doc, multi));
+                setMessage({ kind: 'ok', text: `큐 ${multi.size}개를 삭제했습니다 — Ctrl+Z 로 되돌리기` });
+                setMulti(new Set());
+                setSel(null);
+              }}
+              onClear={() => setMulti(new Set())}
+            />
+          ) : pos ? (
             <CueInspector
               key={sel!.cueId}
               service={doc}
@@ -427,9 +488,10 @@ function ActLane(props: {
   total: number;
   pxPerSec: number;
   selectedCueId?: string;
+  multi: Set<string>;
   liveCueId?: string;
   caps?: SwitcherCaps;
-  onSelect: (cueId: string) => void;
+  onSelect: (cueId: string, additive: boolean) => void;
   onChange: (patch: Partial<Omit<Act, 'id' | 'cues'>>) => void;
   onMove: (to: number) => void;
   onDelete: () => void;
@@ -511,10 +573,10 @@ function ActLane(props: {
                 tcIn={tcs?.[i] ?? null}
                 showSection={act.mode === 'SECTION' && cue.section != null && cue.section !== act.cues[i - 1]?.section}
                 width={durations[i] != null ? Math.max(MIN_WIDTH, (durations[i]! / 1000) * pxPerSec) : UNKNOWN_WIDTH}
-                selected={props.selectedCueId === cue.id}
+                selected={props.selectedCueId === cue.id || props.multi.has(cue.id)}
                 live={props.liveCueId === cue.id}
                 problem={cueProblem(cue, props.caps)}
-                onSelect={() => props.onSelect(cue.id)}
+                onSelect={(additive) => props.onSelect(cue.id, additive)}
               />
             ))}
           </SortableContext>
@@ -537,7 +599,7 @@ function CueBlock(props: {
   selected: boolean;
   live: boolean;
   problem: string | null;
-  onSelect: () => void;
+  onSelect: (additive: boolean) => void;
 }) {
   const { cue } = props;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cue.id });
@@ -553,7 +615,7 @@ function CueBlock(props: {
     .join(' ');
 
   return (
-    <div ref={setNodeRef} style={style} className={cls} onClick={props.onSelect} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} className={cls} onClick={(e) => props.onSelect(e.ctrlKey || e.metaKey || e.shiftKey)} {...attributes} {...listeners}>
       {cue.section && (
         <div className="cue-section" style={{ background: sectionColor(cue.section), opacity: props.showSection ? 1 : 0.45 }}>
           {cue.section}
@@ -642,6 +704,11 @@ function CueInspector(props: {
           maxLength={500}
           onChange={(e) => set({ note: setImportant(e.target.value, parseNote(cue.note).important) })}
         />
+        {[...parseNote(cue.note).text].length > 55 && (
+          <div className="muted" style={{ fontSize: 12, color: 'var(--hold)' }}>
+            메모가 길어 폰에서는 글자가 작게 보입니다 ({[...parseNote(cue.note).text].length}자) — 핵심만 짧게 쓰면 잘 보입니다
+          </div>
+        )}
         <label className="row" style={{ marginTop: 6, fontSize: 13, cursor: 'pointer' }}>
           <input
             type="checkbox"
@@ -880,6 +947,74 @@ function ActImporter({ currentId, onClose, onImport }: { currentId: string; onCl
             {picked.size}개 끝에 붙이기
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** 여러 큐 한꺼번에 고치기 */
+function BulkInspector({
+  service,
+  ids,
+  caps,
+  onChange,
+  onDelete,
+  onClear,
+}: {
+  service: Service;
+  ids: Set<string>;
+  caps?: SwitcherCaps;
+  onChange: (patch: Partial<Omit<Cue, 'id'>>) => void;
+  onDelete: () => void;
+  onClear: () => void;
+}) {
+  const cues = service.acts.flatMap((a) => a.cues.filter((c) => ids.has(c.id)));
+  const same = <K extends keyof Cue>(k: K) => (cues.every((c) => c[k] === cues[0]?.[k]) ? cues[0]?.[k] : undefined);
+  const camOk = (n: number) => !caps?.cameras || caps.cameras.includes(n);
+  return (
+    <div className="inspector-form">
+      <h3>
+        큐 {cues.length}개 일괄 편집 <span className="muted">· Ctrl/Shift+클릭으로 더하거나 빼기</span>
+      </h3>
+      <Field label="카메라 (모두 바꾸기)">
+        <div className="seg">
+          {CAMERAS.map((n) => (
+            <button
+              key={n}
+              className={`${same('camera') === n ? 'on' : ''} ${camOk(n) ? '' : 'no-output'}`}
+              style={same('camera') === n ? { background: cameraColor(n), borderColor: cameraColor(n), color: '#000' } : { color: cameraColor(n) }}
+              onClick={() => onChange({ camera: n })}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="샷 사이즈 (모두 바꾸기)">
+        <div className="seg wrap">
+          {SHOT_SIZES.map((sz) => (
+            <button key={sz} className={same('shotSize') === sz ? 'on' : ''} onClick={() => onChange({ shotSize: sz })} title={SHOT_LABEL[sz]}>
+              {sz}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="스위처 동작 (모두 바꾸기)">
+        <div className="seg">
+          <button className={same('atemAction') === 'cut' ? 'on' : ''} onClick={() => onChange({ atemAction: 'cut' })}>
+            CUT
+          </button>
+          <button className={same('atemAction') === 'auto' ? 'on' : ''} onClick={() => onChange({ atemAction: 'auto' })}>
+            AUTO{caps && !caps.transition ? ' (이 스위처는 컷)' : ''}
+          </button>
+        </div>
+      </Field>
+      <div className="row" style={{ marginTop: 16 }}>
+        <button onClick={onClear}>선택 해제 (Esc)</button>
+        <span className="spacer" />
+        <button className="danger" onClick={() => confirm(`큐 ${cues.length}개를 삭제할까요? (Ctrl+Z 로 되돌릴 수 있음)`) && onDelete()}>
+          {cues.length}개 삭제
+        </button>
       </div>
     </div>
   );

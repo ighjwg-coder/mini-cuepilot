@@ -10,3 +10,4 @@ certs/
 release/
 live-state.json
 live-state.json.tmp
+logs/

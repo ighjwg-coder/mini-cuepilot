@@ -8,12 +8,13 @@ import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 import { APP_NAME, APP_VERSION } from '../shared/version';
 import { buildApp } from './app';
-import { prepareDataDir, saveConfigPort, type DataDirResult } from './bootstrap';
+import { backupDb, prepareDataDir, saveConfigPort, type DataDirResult } from './bootstrap';
 import { DeviceManager } from './devices/manager';
 import { DISCOVERY_PORT, discoveryInfo, startDiscoveryResponder, type DiscoveryResponder } from './discovery';
 import { preventSleep } from './keepAwake';
 import { DEFAULT_PORT, isCamCueRunning, listenWithFallback } from './listen';
 import { RESUME_POSITION_MS, createLiveStateWriter, readLiveState } from './liveState';
+import { createRunLogger } from './runLog';
 import { ServiceRepo } from './repo';
 import { ShowRuntime } from './runtime';
 import { sampleServiceInput } from './sampleService';
@@ -27,6 +28,16 @@ if (process.env.CAMCUE_DATA_DIR) {
 } else {
   if (existsSync('.env')) process.loadEnvFile('.env');
   process.env.DATABASE_URL ??= 'file:./dev.db';
+}
+
+// DB 자동 백업 (설치판: 데이터 폴더\backup, 최근 14개)
+let backupPath: string | null = null;
+if (dataDir) {
+  try {
+    backupPath = backupDb(dataDir.dbPath, join(dirname(dataDir.dbPath), 'backup'));
+  } catch (err) {
+    console.warn(`  [알림] DB 백업 실패: ${(err as Error).message}`);
+  }
 }
 
 const preferredPort = Number(process.env.PORT) || DEFAULT_PORT;
@@ -80,6 +91,11 @@ if (savedService && savedLive) {
   runtime.load(await repo.latest());
 }
 const writeLive = createLiveStateWriter(liveStatePath);
+// 진행 기록 CSV (데이터 폴더\logs)
+const logDir = join(dataDir ? dirname(dataDir.configPath) : resolve('.'), 'logs');
+const runLog = createRunLogger(logDir, () => runtime.service?.title ?? '');
+runtime.on('transition', (r) => runLog.transition(r));
+runtime.on('command', (e) => runLog.command(e));
 runtime.on('state', (s) => writeLive(s.serviceId, s.state.actIndex >= 0 ? { actIndex: s.state.actIndex, cueIndex: s.state.cueIndex } : null));
 runtime.start();
 const stopKeepAwake = preventSleep((m) => console.warn(`  [알림] ${m}`));
@@ -90,7 +106,7 @@ const https =
     : undefined;
 const proto = https ? 'https' : 'http';
 // 설치판은 콘솔 창이 요청 로그로 넘치지 않도록 경고 이상만 출력
-const app = await buildApp({ repo, runtime, devices, webDir, apkPath, logger: dataDir ? { level: 'warn' } : true, https });
+const app = await buildApp({ repo, runtime, devices, webDir, apkPath, logger: dataDir ? { level: 'warn' } : true, https, logDir });
 
 // 포트: 지정 포트 → 막혀 있으면(Windows 예약 포트 EACCES / 사용 중 EADDRINUSE) 다른 5자리 포트로 자동 변경
 let port: number;
@@ -162,6 +178,8 @@ console.log(`
    폰 앱 자동 검색 : ${discovery ? `켜짐 (UDP ${discovery.port})` : '꺼짐 — 앱에서 IP 직접 입력'}${existsSync(apkPath) ? `\n   폰 앱 설치      : ${lanUrls[0] ?? webUrl}/app` : ''}${
      dataDir
        ? `\n   설정 파일       : ${dataDir.configPath}\n   데이터          : ${dataDir.dbPath}${
+           backupPath ? `\n   자동 백업       : ${dirname(backupPath)} (최근 14개)` : ''
+         }\n   진행 기록       : ${logDir}${
            dataDir.migratedFrom ? `\n   (이전 버전 데이터를 가져왔습니다: ${dataDir.migratedFrom})` : ''
          }`
        : ''

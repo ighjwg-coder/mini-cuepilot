@@ -3,10 +3,11 @@
 // 색 약속: 빨강 = ON AIR 전용. 차례가 다가오면 흰색 → 노랑 → 주황으로만 바뀌고 5초 전부터 흔들린다.
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useParams } from 'react-router-dom';
-import { cameraView, cueDurationMs, cueElapsedMs, currentAct, type UpcomingCue } from '@shared/engine';
+import { cameraView, cueDurationMs, cueElapsedMs, currentAct, upcoming, type UpcomingCue } from '@shared/engine';
 import { parseNote } from '@shared/note';
 import { isRealTally } from '@shared/protocol';
-import { MAX_CAMERA, MIN_CAMERA, type Cue } from '@shared/types';
+import { MAX_CAMERA, MIN_CAMERA, type Cue, type Service } from '@shared/types';
+import type { EngineState } from '@shared/engine';
 import { SHOT_LABEL, cameraColor, formatClock } from '../lib/format';
 import { useShow, useTicker } from '../lib/useShow';
 import { useWakeLock } from '../lib/useWakeLock';
@@ -23,6 +24,17 @@ const SHAKE_FROM_MS = 5_000;
  * (캠큐는 GO 즉시 큐를 넘기지만 실제 탈리는 스위처를 거쳐 조금 늦게 들어온다)
  */
 const SWITCH_GRACE_MS = 1500;
+/** 큐시트가 바뀌어 내 다음 샷이 달라졌을 때 알림을 보여 주는 시간 */
+const CHANGED_NOTICE_MS = 6000;
+
+/** 메모 길이에 따라 글자 크기 단계 (긴 메모가 화면 밖으로 잘리지 않도록) */
+export function noteSizeClass(text: string): string {
+  const n = [...text].length;
+  if (n > 90) return 'cs-note-xs';
+  if (n > 55) return 'cs-note-s';
+  if (n > 28) return 'cs-note-m';
+  return '';
+}
 
 export function CueScreenPage() {
   const n = Number(useParams().n);
@@ -45,6 +57,8 @@ function CueScreen({ camera }: { camera: number }) {
   const [started, setStarted] = useState(inApp);
   const [settings, setSettings] = useState<CueSettings>(loadCueSettings);
   const [showSettings, setShowSettings] = useState(false);
+  const [showList, setShowList] = useState(false);
+  const [changedAt, setChangedAt] = useState(0);
   useTicker(100);
 
   useEffect(() => {
@@ -72,7 +86,8 @@ function CueScreen({ camera }: { camera: number }) {
    * ② GPI 접점 컷·이케가미처럼 스위처 상태를 읽지 못해 "캠큐가 보낸 컷" 기준 (패널 수동 컷은 모름)
    */
   const byCommand = tally?.source === 'command';
-  const estimated = byCommand || (tally?.source === 'engine' && switcherMode !== undefined && switcherMode !== 'disabled');
+  const rehearsal = !!snapshot?.rehearsal;
+  const estimated = rehearsal || byCommand || (tally?.source === 'engine' && switcherMode !== undefined && switcherMode !== 'disabled');
   /** 같은 카메라 번호를 고른 화면 수 (번호 착각 확인용) */
   const sameCamScreens = clients.filter((c) => c.role === 'cam' && c.camera === camera).length;
   const sinceSwitch = state?.lastTransition ? now - state.lastTransition.at : Infinity;
@@ -132,6 +147,21 @@ function CueScreen({ camera }: { camera: number }) {
     if (tallyOn && !wasOnAir.current && started && settings.vibrate === 'all') vibrate([400]);
     wasOnAir.current = tallyOn;
   }, [tallyOn, started, settings.vibrate]);
+  // ── 큐시트 변경 알림: 같은 진행 위치인데 내 지금/다음 샷 내용이 바뀌었으면 (라이브 중 에디터 저장) ──
+  const mineSig = view ? [view.current, view.next?.cue, view.afterNext?.cue].map((c) => (c ? `${c.id}|${c.shotSize}|${c.note}|${c.camera}` : '-')).join('/') : '';
+  const posKey = state ? `${state.actIndex}:${state.cueIndex}` : '';
+  const lastSig = useRef<{ service: Service | null; pos: string; sig: string } | null>(null);
+  useEffect(() => {
+    const prev = lastSig.current;
+    lastSig.current = { service, pos: posKey, sig: mineSig };
+    if (!prev || !service || prev.service === service || prev.service?.id !== service.id) return;
+    if (prev.pos === posKey && prev.sig !== mineSig) {
+      setChangedAt(Date.now());
+      if (started && settings.vibrate !== 'off') vibrate([80, 60, 80, 60, 80]);
+    }
+  }, [service, posKey, mineSig, started, settings.vibrate]);
+  const changed = Date.now() - changedAt < CHANGED_NOTICE_MS;
+
   const nextId = next?.cue.id ?? null;
   const exactEta = next?.exact ? eta : null;
   const warned = useRef<string | null>(null);
@@ -169,11 +199,15 @@ function CueScreen({ camera }: { camera: number }) {
       <header className="cs-header">
         <span className="cs-cam">CAM {camera}</span>
         {showPvw && <span className="cs-pvw-tag">PVW</span>}
-        {estimated && connected && <span className="cs-estimate">{byCommand ? '탈리 추정 · 명령 기준' : '탈리 추정'}</span>}
+        {rehearsal && connected && <span className="cs-estimate cs-rehearsal">리허설</span>}
+        {estimated && !rehearsal && connected && <span className="cs-estimate">{byCommand ? '탈리 추정 · 명령 기준' : '탈리 추정'}</span>}
         {sameCamScreens > 1 && <span className="cs-estimate cs-dup">CAM {camera} 화면 {sameCamScreens}대</span>}
         <span className="cs-spacer" />
         {state?.held && <span className="cs-hold">HOLD</span>}
         <span className={`cs-conn ${connected ? 'ok' : 'bad'}`}>{connected ? '●' : '● 재연결 중'}</span>
+        <button className="cs-gear" onClick={() => setShowList(true)} aria-label="내 큐 목록">
+          ☰
+        </button>
         <button className="cs-gear" onClick={() => setShowSettings(true)} aria-label="화면 설정">
           ⚙
         </button>
@@ -183,7 +217,7 @@ function CueScreen({ camera }: { camera: number }) {
       <section className={`cs-band ${shaking ? 'cs-shake' : ''}`}>
         {phase === 'onair' && (
           <>
-            <span className="cs-band-title">● ON AIR{estimated ? ' (추정)' : ''}</span>
+            <span className="cs-band-title">● ON AIR{rehearsal ? ' (리허설)' : estimated ? ' (추정)' : ''}</span>
             {liveRemaining != null && <span className="cs-band-time cs-mono">{formatClock(liveRemaining)}</span>}
           </>
         )}
@@ -213,7 +247,9 @@ function CueScreen({ camera }: { camera: number }) {
       )}
       {phase === 'onair' && (
         <div className="cs-band-sub">
-          {manualOnAir
+          {rehearsal
+            ? '리허설 — 실제 송출이 아닙니다, 카메라 탈리 램프 확인'
+            : manualOnAir
             ? '수동 컷 — 큐와 별개로 송출 중'
             : byCommand
               ? '캠큐가 보낸 컷 기준 — 패널 수동 컷은 모름, 카메라 탈리 램프 확인'
@@ -223,6 +259,8 @@ function CueScreen({ camera }: { camera: number }) {
         </div>
       )}
       {notOnAir && <div className="cs-band-sub">패널에서 다른 카메라로 컷됨 — 디렉터 확인</div>}
+
+      {changed && <div className="cs-changed">✎ 큐시트가 바뀌었습니다 — 내 샷을 다시 확인하세요</div>}
 
       {/* ② 내 샷 + ③ 메모 */}
       <main className="cs-main">
@@ -234,7 +272,7 @@ function CueScreen({ camera }: { camera: number }) {
               <span className="cs-shot-ko">{SHOT_LABEL[mainCue.shotSize]}</span>
             </div>
             {note.text && (
-              <div className={`cs-note ${note.important ? 'important' : ''} ${shaking ? 'cs-shake' : ''}`}>
+              <div className={`cs-note ${noteSizeClass(note.text)} ${note.important ? 'important' : ''} ${shaking ? 'cs-shake' : ''}`}>
                 {note.important && <span className="cs-note-mark">⚠ 중요</span>}
                 {note.text}
               </div>
@@ -267,6 +305,10 @@ function CueScreen({ camera }: { camera: number }) {
         </div>
       )}
 
+      {showList && service && state && (
+        <MyCueList service={service} state={state} now={now} camera={camera} onClose={() => setShowList(false)} />
+      )}
+
       {showSettings && <SettingsPanel settings={settings} onChange={setSettings} onClose={() => setShowSettings(false)} />}
 
       {!started && (
@@ -278,6 +320,45 @@ function CueScreen({ camera }: { camera: number }) {
           <small>화면 꺼짐 방지 · 전체 화면</small>
         </button>
       )}
+    </div>
+  );
+}
+
+/** 내 큐 전체 목록 (예배 전 브리핑·준비용). 지난 큐는 흐리게 */
+function MyCueList({ service, state, now, camera, onClose }: { service: Service; state: EngineState; now: number; camera: number; onClose: () => void }) {
+  const ahead = new Map(upcoming(service, state, now, Infinity).map((u) => [u.cue.id, u]));
+  const rows = service.acts.flatMap((act, a) =>
+    act.cues.flatMap((cue, c) => (cue.camera === camera ? [{ act, a, c, cue }] : [])),
+  );
+  const isNow = (a: number, c: number) => a === state.actIndex && c === state.cueIndex;
+  return (
+    <div className="cs-settings" onClick={onClose}>
+      <div className="cs-settings-box cs-list-box" onClick={(e) => e.stopPropagation()}>
+        <h2>CAM {camera} 큐 목록 ({rows.length})</h2>
+        <div className="cs-list">
+          {rows.length === 0 && <div className="cs-dim">이 행사에 CAM {camera} 큐가 없습니다</div>}
+          {rows.map(({ act, a, c, cue }) => {
+            const u = ahead.get(cue.id);
+            const n = parseNote(cue.note);
+            return (
+              <div key={cue.id} className={`cs-list-row ${isNow(a, c) ? 'now' : u ? '' : 'past'}`}>
+                <div className="cs-list-where">
+                  {act.title} #{c + 1}
+                  {cue.section ? ` · ${cue.section}` : ''}
+                  <span className="cs-dim">{isNow(a, c) ? ' · 지금' : u ? ` · ${etaText(u)}` : ''}</span>
+                </div>
+                <div>
+                  <b>{cue.shotSize}</b> <span className="cs-dim">{SHOT_LABEL[cue.shotSize]}</span>{' '}
+                  {n.important ? <span className="cs-after-important">⚠ {n.text}</span> : n.text}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <button className="cs-settings-close" onClick={onClose}>
+          닫기
+        </button>
+      </div>
     </div>
   );
 }
