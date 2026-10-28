@@ -43,6 +43,10 @@ export class MockAtemAdapter implements AtemAdapter {
       programInput: this.connected ? this.programInput : null,
       previewInput: this.connected ? this.previewInput : null,
       lastError: this.lastError,
+      // 실제 ATEM 처럼 AUTO 전환 중에는 PGM · PVW 두 입력이 함께 송출
+      ...(this.connected
+        ? { onAirInputs: this.transitionTimer ? [this.programInput, this.previewInput].sort((a, b) => a - b) : [this.programInput] }
+        : {}),
     };
   }
 
@@ -108,6 +112,7 @@ export class MockAtemAdapter implements AtemAdapter {
     if (ms <= 0) return this.swap();
     if (this.transitionTimer) clearTimeout(this.transitionTimer);
     this.transitionTimer = setTimeout(() => this.swap(), ms);
+    this.emit();
   }
 
   async runMacro(index: number) {

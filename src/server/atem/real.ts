@@ -2,8 +2,17 @@
 // atem-connection 은 connect() 이후 연결이 끊기면 스스로 재접속을 시도한다.
 // 연결 실패/끊김은 예외로 앱을 멈추지 않고 status() 로만 노출한다.
 import type { Atem } from 'atem-connection';
+import type { TallyBySourceProps } from 'atem-connection/dist/commands/TallyBySourceCommand';
 import type { AtemStatus } from '../../shared/protocol';
 import type { AtemAdapter } from './types';
+
+/** ATEM 소스별 탈리(TlSr)에서 PGM 에 나가는 입력 번호 (디졸브 중이면 두 입력 모두) */
+export function programSources(props: TallyBySourceProps): number[] {
+  return Object.entries(props)
+    .filter(([, t]) => t?.program)
+    .map(([src]) => Number(src))
+    .sort((a, b) => a - b);
+}
 
 export interface RealAtemOptions {
   host: string;
@@ -18,6 +27,8 @@ export class RealAtemAdapter implements AtemAdapter {
   private lastError: string | null = null;
   private listeners = new Set<(s: AtemStatus) => void>();
   private readonly me: number;
+  /** 스위처가 보내 준 소스별 탈리 (아직 못 받았으면 null) */
+  private onAir: number[] | null = null;
 
   constructor(private readonly opts: RealAtemOptions) {
     this.me = opts.mixEffect ?? 0;
@@ -33,6 +44,7 @@ export class RealAtemAdapter implements AtemAdapter {
       programInput: me?.programInput ?? null,
       previewInput: me?.previewInput ?? null,
       lastError: this.lastError,
+      ...(this.connected && this.onAir ? { onAirInputs: this.onAir } : {}),
     };
   }
 
@@ -44,7 +56,7 @@ export class RealAtemAdapter implements AtemAdapter {
   async connect() {
     if (this.atem) return;
     // 라이브러리는 필요할 때만 로드 (mock/disabled 모드에서는 워커 스레드를 띄우지 않음)
-    const { Atem } = await import('atem-connection');
+    const { Atem, Commands } = await import('atem-connection');
     const atem = new Atem();
     this.atem = atem;
 
@@ -55,11 +67,19 @@ export class RealAtemAdapter implements AtemAdapter {
     });
     atem.on('disconnected', () => {
       this.connected = false;
+      this.onAir = null;
       this.lastError = '연결 끊김 — 자동 재접속 시도 중';
       this.emit();
     });
     atem.on('error', (msg) => {
       this.lastError = String(msg);
+      this.emit();
+    });
+    // 소스별 탈리: 디졸브·키·PIP 로 여러 입력이 동시에 나가는 것까지 스위처 기준으로 받는다
+    atem.on('receivedCommands', (cmds) => {
+      const tally = cmds.find((c): c is InstanceType<typeof Commands.TallyBySourceCommand> => c instanceof Commands.TallyBySourceCommand);
+      if (!tally) return;
+      this.onAir = programSources(tally.properties);
       this.emit();
     });
     atem.on('stateChanged', (_state, paths) => {
@@ -79,6 +99,7 @@ export class RealAtemAdapter implements AtemAdapter {
     const atem = this.atem;
     this.atem = null;
     this.connected = false;
+    this.onAir = null;
     this.emit();
     if (atem) await atem.destroy().catch(() => {});
   }

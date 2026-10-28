@@ -15,10 +15,12 @@ import {
   type EngineState,
 } from '../shared/engine';
 import type { CommandLogEntry, ShowCommand, ShowSnapshot, Tally } from '../shared/protocol';
-import type { Service } from '../shared/types';
+import { MAX_CAMERA, MIN_CAMERA, type Service } from '../shared/types';
 import { FULL_CAPS, executeAtemAction, type AtemAdapter } from './atem/types';
 import type { TallyInput } from './devices/manager';
 import type { TimecodeSource } from './timecode';
+
+const isCameraNumber = (n: number) => Number.isInteger(n) && n >= MIN_CAMERA && n <= MAX_CAMERA;
 
 export interface RuntimeOptions {
   atem: AtemAdapter;
@@ -210,7 +212,9 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
     if (atem.connected) {
       // GPI 접점 컷·이케가미 라우터는 스위처 상태를 읽어 오지 못한다 → 캠큐가 보낸 명령 기준 (패널 수동 컷 모름)
       const source = atem.mode === 'gpi' || atem.mode === 'ikegami' ? 'command' : 'atem';
-      return { program: atem.programInput, preview: atem.previewInput, onAir: one(atem.programInput), source };
+      // 소스별 탈리를 아는 스위처(ATEM)는 디졸브 중 두 대 모두. 카메라 번호 범위 밖 입력(PC · 미디어 등)은 카메라가 아님
+      const onAir = (atem.onAirInputs ?? one(atem.programInput)).filter(isCameraNumber);
+      return { program: atem.programInput, preview: atem.previewInput, onAir, source };
     }
     return { program: this._state.programCamera, preview: next(), onAir: one(this._state.programCamera), source: 'engine' };
   }

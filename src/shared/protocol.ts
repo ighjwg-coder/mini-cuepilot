@@ -29,6 +29,11 @@ export interface AtemStatus {
   lastError: string | null;
   /** 탈리만 읽고 GO 해도 컷을 보내지 않음 (단순 탈리) */
   tallyOnly?: boolean;
+  /**
+   * 스위처가 알려 준 "지금 송출에 나가는 입력" 전부 (작은 번호부터). 디졸브 중이나 키·PIP 로 두 대가 같이 나가면 둘 다.
+   * 모르는 장비(이케가미·GPI 컷)는 없음 → programInput 하나로 판단
+   */
+  onAirInputs?: number[];
 }
 
 export interface Tally {
