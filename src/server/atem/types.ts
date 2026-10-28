@@ -59,6 +59,34 @@ async function cutIfNeeded(atem: AtemAdapter, camera: number) {
   await atem.cut();
 }
 
+/**
+ * 단순 탈리: 안쪽 어댑터로 연결·상태(PGM/PVW)만 읽고, 전환·매크로 명령은 보내지 않는다.
+ * GO 해도 스위처는 그대로 → 운영자가 직접 컷하고 캠큐는 카메라맨 폰에 탈리만 보여 준다.
+ */
+export class TallyOnlyAdapter implements AtemAdapter {
+  constructor(private readonly inner: AtemAdapter) {}
+  status(): AtemStatus {
+    return { ...this.inner.status(), tallyOnly: true };
+  }
+  onStatus(listener: (status: AtemStatus) => void): () => void {
+    return this.inner.onStatus(() => listener(this.status()));
+  }
+  connect() {
+    return this.inner.connect();
+  }
+  disconnect() {
+    return this.inner.disconnect();
+  }
+  capabilities() {
+    return this.inner.capabilities?.() ?? FULL_CAPS;
+  }
+  async setPreview() {}
+  async cut() {}
+  async autoTransition() {}
+  async runMacro() {}
+  async setDownstreamKeyOnAir() {}
+}
+
 /** ATEM_HOST 미설정 시: 아무 것도 하지 않고 상태만 'disabled' 로 보고 */
 export class DisabledAtemAdapter implements AtemAdapter {
   status(): AtemStatus {

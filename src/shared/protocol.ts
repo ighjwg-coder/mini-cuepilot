@@ -27,6 +27,8 @@ export interface AtemStatus {
   programInput: number | null;
   previewInput: number | null;
   lastError: string | null;
+  /** 탈리만 읽고 GO 해도 컷을 보내지 않음 (단순 탈리) */
+  tallyOnly?: boolean;
 }
 
 export interface Tally {

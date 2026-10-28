@@ -18,7 +18,7 @@ export function readDeviceSettings(env: NodeJS.ProcessEnv = process.env): Device
 export interface ResolvedDevices {
   switcher:
     | { kind: 'none' }
-    | { kind: 'atem'; atem: AtemConfig; me: number }
+    | { kind: 'atem'; atem: AtemConfig; me: number; tallyOnly: boolean }
     | ({ kind: 'ikegami'; port: string; baudRate: number; parity: Parity } & Pick<IkegamiOptions, 'pgmOutput' | 'camInputs' | 'takeTemplate'>)
     | { kind: 'gpi'; cutOutputs: number[]; pulseMs: number };
   gpi:
@@ -67,7 +67,8 @@ export function resolveDevices(s: DeviceSettings): ResolvedDevices {
   let switcher: ResolvedDevices['switcher'] = { kind: 'none' };
   if (kind === 'atem') {
     const me = int('ATEM_ME', 1, 8);
-    switcher = { kind: 'atem', atem: parseAtemHost(s.ATEM_HOST), me };
+    const tallyOnly = s.ATEM_TALLY_ONLY === '1' || s.ATEM_TALLY_ONLY.toLowerCase() === 'true';
+    switcher = { kind: 'atem', atem: parseAtemHost(s.ATEM_HOST), me, tallyOnly };
   } else if (kind === 'ikegami') {
     const parity = s.IKEGAMI_PARITY.toLowerCase();
     if (!['odd', 'even', 'none'].includes(parity)) errors.push(`IKEGAMI_PARITY=${s.IKEGAMI_PARITY} — odd / even / none`);

@@ -172,6 +172,8 @@ function LivePanel({
   // GO 직후에는 실제 탈리가 스위처를 거쳐 조금 늦게 들어오므로, 큐와 다름 경고는 잠시 뒤부터
   const settled = !state.lastTransition || now - state.lastTransition.at > 1500;
   const switcherDown = snapshot.atem.mode !== 'disabled' && !snapshot.atem.connected;
+  /** 단순 탈리: 캠큐가 컷을 보내지 않고 실제 탈리만 보여 주는 운영 */
+  const noCut = !!snapshot.atem.tallyOnly || (snapshot.atem.mode === 'disabled' && tally.source === 'gpi');
   const act = currentAct(service, state);
   const cue = currentCue(service, state);
   const next = upcoming(service, state, now, 1)[0] ?? null;
@@ -316,7 +318,8 @@ function LivePanel({
             ⚠️ 스위처 연결 끊김 — GO 를 눌러도 컷이 나가지 않고 큐만 넘어갑니다. 카메라맨 폰 탈리는 큐 기준 추정입니다.
           </div>
         )}
-        {settled && tally.source === 'gpi' && state.programCamera !== null && !onAir.includes(state.programCamera) && (
+        {noCut && <div className="cam-warn">ℹ️ 단순 탈리 — GO 를 눌러도 컷이 나가지 않습니다. 컷은 스위처에서 직접, 폰에는 실제 송출만 표시됩니다.</div>}
+        {!noCut && settled && tally.source === 'gpi' && state.programCamera !== null && !onAir.includes(state.programCamera) && (
           <div className="tally-mismatch">
             ⚠️ 실제 송출 {onAir.length ? onAir.map((n) => `CAM ${n}`).join(' + ') : '없음'} — 큐는 CAM {state.programCamera}
           </div>
@@ -360,8 +363,15 @@ function Readiness({
     { ok: service.acts.some((a) => a.cues.length > 0), text: `행사: ${service.title}` },
     {
       ok: atem.mode === 'disabled' || atem.connected,
-      warn: atem.mode === 'disabled',
-      text: atem.mode === 'disabled' ? '스위처: 사용 안 함 (큐만 진행)' : atem.connected ? `스위처 연결 (${atem.mode.toUpperCase()})` : '스위처 연결 안 됨',
+      warn: atem.mode === 'disabled' && snapshot.tally.source !== 'gpi',
+      text:
+        atem.mode === 'disabled'
+          ? snapshot.tally.source === 'gpi'
+            ? '스위처: 컷 제어 안 함 · 단순 탈리'
+            : '스위처: 사용 안 함 (큐만 진행)'
+          : atem.connected
+            ? `스위처 연결 (${atem.mode.toUpperCase()}${atem.tallyOnly ? ' · 탈리만, 컷 안 보냄' : ''})`
+            : '스위처 연결 안 됨',
     },
     {
       ok: snapshot.tally.source === 'gpi' || snapshot.tally.source === 'atem',

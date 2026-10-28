@@ -1,8 +1,9 @@
 // 카메라맨용 CueScreen (/cam/:n)
 // 한눈에: ① 상태 띠(ON AIR / 다음 차례 / 대기) + 카운트다운 → ② 내 샷 → ③ 메모 카드 → ④ 그 다음
 // 색 약속: 빨강 = ON AIR 전용. 차례가 다가오면 흰색 → 노랑 → 주황으로만 바뀌고 5초 전부터 흔들린다.
+// 단순 탈리(설정 또는 /cam/N?view=tally): 화면 전체가 탈리 램프 — 송출 중 빨강 / PVW 초록 / 그 외 어둡게.
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { cameraView, cueDurationMs, cueElapsedMs, currentAct, upcoming, type UpcomingCue } from '@shared/engine';
 import { parseNote } from '@shared/note';
 import { isRealTally } from '@shared/protocol';
@@ -56,6 +57,15 @@ function CueScreen({ camera }: { camera: number }) {
   // 앱에서는 화면 유지·전체 화면을 앱이 처리 → 바로 시작
   const [started, setStarted] = useState(inApp);
   const [settings, setSettings] = useState<CueSettings>(loadCueSettings);
+  // 주소로 화면 모드를 고정할 수 있다 (/cam/1?view=tally) — 폰마다 설정을 만지지 않아도 되게
+  const [search, setSearch] = useSearchParams();
+  const urlView = search.get('view');
+  const simple = urlView === 'tally' || (urlView !== 'cue' && settings.view === 'tally');
+  /** 설정에서 고른 모드가 우선 — 주소의 ?view= 는 지워서 다시 덮어쓰지 않게 */
+  const pickView = (view: CueSettings['view']) => {
+    setSettings((s) => ({ ...s, view }));
+    if (urlView) setSearch({}, { replace: true });
+  };
   const [showSettings, setShowSettings] = useState(false);
   const [showList, setShowList] = useState(false);
   const [changedAt, setChangedAt] = useState(0);
@@ -75,6 +85,8 @@ function CueScreen({ camera }: { camera: number }) {
   const view = service && state ? cameraView(service, state, now, camera) : null;
   const tally = snapshot?.tally;
   const switcherMode = snapshot?.atem.mode;
+  /** 캠큐가 컷을 보내지 않는 운영 (스위처 사용 안 함 · ATEM 탈리만) — GO 해도 탈리가 따라오지 않는다 */
+  const noCut = !!snapshot?.atem.tallyOnly || switcherMode === 'disabled';
   const act = service && state ? currentAct(service, state) : null;
 
   // ── 탈리 판단 ──
@@ -95,7 +107,7 @@ function CueScreen({ camera }: { camera: number }) {
   const isCurrent = !!view?.current;
   const tallyOn = onAirCams.includes(camera);
   /** 내 큐로 막 넘어왔고 실제 탈리가 따라오는 중 */
-  const pending = (realTally || byCommand) && isCurrent && !tallyOn && switching;
+  const pending = !noCut && (realTally || byCommand) && isCurrent && !tallyOn && switching;
   const onAir = connected && (tallyOn || pending);
   /** 큐와 상관없이 실제로 송출 중 (패널에서 수동 컷) */
   const manualOnAir = connected && realTally && tallyOn && !isCurrent && !switching;
@@ -186,6 +198,48 @@ function CueScreen({ camera }: { camera: number }) {
     '--shake': `${(0.4 + urgency * 1.2).toFixed(2)}vmin`,
     filter: settings.brightness < 100 ? `brightness(${settings.brightness / 100})` : undefined,
   } as CSSProperties;
+
+  if (simple) {
+    const look = !connected ? 'off' : onAir ? 'onair' : showPvw ? 'pvw' : 'off';
+    return (
+      <div className={`cs cs-simple cs-simple-${look} ${look === 'onair' && estimated ? 'cs-simple-est' : ''}`} style={style}>
+        <header className="cs-header cs-simple-top">
+          <span className="cs-simple-label">CAM {camera}</span>
+          {rehearsal && connected && <span className="cs-estimate cs-rehearsal">리허설</span>}
+          {estimated && !rehearsal && connected && <span className="cs-estimate">{byCommand ? '탈리 추정 · 명령 기준' : '탈리 추정'}</span>}
+          {sameCamScreens > 1 && <span className="cs-estimate cs-dup">CAM {camera} 화면 {sameCamScreens}대</span>}
+          <span className="cs-spacer" />
+          <span className={`cs-conn ${connected ? 'ok' : 'bad'}`}>{connected ? '●' : '● 재연결 중'}</span>
+          <button className="cs-gear" onClick={() => setShowSettings(true)} aria-label="화면 설정">
+            ⚙
+          </button>
+        </header>
+        <div className="cs-simple-cam">{camera}</div>
+        <div className="cs-simple-state">
+          {look === 'onair' ? `ON AIR${rehearsal ? ' (리허설)' : estimated ? ' (추정)' : ''}` : look === 'pvw' ? 'PVW' : connected ? '대기' : ''}
+        </div>
+        {look !== 'onair' && phase === 'next' && <div className="cs-simple-next">▶ 다음이 내 차례</div>}
+
+        {phase === 'offline' && (
+          <div className="cs-offline-cover">
+            <b>연결 끊김</b>
+            <span>지금 탈리를 알 수 없습니다</span>
+            <small>자동으로 다시 연결하는 중… 카메라 위 탈리 램프를 보세요</small>
+          </div>
+        )}
+        {showSettings && <SettingsPanel settings={settings} view={simple ? 'tally' : 'cue'} onView={pickView} onChange={setSettings} onClose={() => setShowSettings(false)} />}
+        {!started && (
+          <button className="cs-start" onClick={start}>
+            <span className="cs-cam" style={{ fontSize: '14vmin' }}>
+              CAM {camera}
+            </span>
+            <span>화면을 탭해서 시작 · 단순 탈리</span>
+            <small>화면 꺼짐 방지 · 전체 화면</small>
+          </button>
+        )}
+      </div>
+    );
+  }
 
   const mainLabel = view?.current ? (notOnAir ? '큐상 지금 내 차례 · 실제 송출 아님' : '지금 내 샷') : manualOnAir ? '다음 큐에서 찍을 샷' : '다음 내 샷';
 
@@ -309,7 +363,7 @@ function CueScreen({ camera }: { camera: number }) {
         <MyCueList service={service} state={state} now={now} camera={camera} onClose={() => setShowList(false)} />
       )}
 
-      {showSettings && <SettingsPanel settings={settings} onChange={setSettings} onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsPanel settings={settings} view={simple ? 'tally' : 'cue'} onView={pickView} onChange={setSettings} onClose={() => setShowSettings(false)} />}
 
       {!started && (
         <button className="cs-start" onClick={start}>
@@ -363,12 +417,35 @@ function MyCueList({ service, state, now, camera, onClose }: { service: Service;
   );
 }
 
-function SettingsPanel({ settings, onChange, onClose }: { settings: CueSettings; onChange: (s: CueSettings) => void; onClose: () => void }) {
+function SettingsPanel({
+  settings,
+  view,
+  onView,
+  onChange,
+  onClose,
+}: {
+  settings: CueSettings;
+  /** 지금 보이는 화면 모드 (주소 ?view= 포함) */
+  view: CueSettings['view'];
+  onView: (v: CueSettings['view']) => void;
+  onChange: (s: CueSettings) => void;
+  onClose: () => void;
+}) {
   const set = (patch: Partial<CueSettings>) => onChange({ ...settings, ...patch });
   return (
     <div className="cs-settings" onClick={onClose}>
       <div className="cs-settings-box" onClick={(e) => e.stopPropagation()}>
         <h2>화면 설정</h2>
+        <Choice
+          label="화면 모드"
+          value={view}
+          options={[
+            ['cue', '큐 화면'],
+            ['tally', '단순 탈리'],
+          ]}
+          onChange={onView}
+          help="단순 탈리: 샷·메모 없이 화면 전체가 탈리 램프가 됩니다 (송출 중 빨강). 주소 끝에 ?view=tally 를 붙여도 됩니다"
+        />
         <Choice
           label="진동"
           value={settings.vibrate}

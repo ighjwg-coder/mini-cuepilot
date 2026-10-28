@@ -2,7 +2,7 @@
 // 장비 연결 화면에서 설정을 저장하면 프로그램을 다시 시작하지 않고 바로 다시 연결한다.
 import type { DeviceSettings, DevicesSnapshot, SerialLogEntry } from '../../shared/devices';
 import type { Tally } from '../../shared/protocol';
-import { DisabledAtemAdapter, MockAtemAdapter, RealAtemAdapter, type AtemAdapter } from '../atem';
+import { DisabledAtemAdapter, MockAtemAdapter, RealAtemAdapter, TallyOnlyAdapter, type AtemAdapter } from '../atem';
 import { readDeviceSettings, resolveDevices, updateConfigFile, type ResolvedDevices } from './config';
 import { DisabledGpi, MockGpi, ModbusGpi, onAirFromInputs, type GpiModule } from './gpi';
 import { GpiSwitcherAdapter } from './gpiSwitcher';
@@ -158,6 +158,7 @@ export class DeviceManager {
         break;
       case 'atem':
         adapter = (this.opts.atemFactory ?? defaultAtem)(sw);
+        if (sw.tallyOnly) adapter = new TallyOnlyAdapter(adapter);
         break;
       case 'ikegami': {
         const link = sw.port.toLowerCase() === 'mock' ? new MockSerialLink() : (this.opts.serialFactory ?? defaultSerial)(sw.port, sw);
