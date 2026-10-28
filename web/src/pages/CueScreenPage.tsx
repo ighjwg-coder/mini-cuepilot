@@ -127,7 +127,7 @@ function CueScreen({ camera }: { camera: number }) {
         : realTally && !rehearsal
           ? '지금 송출: 카메라 외 소스 (PPT · 천장 등)'
           : null;
-  const showPvw = connected && !onAir && tally?.preview === camera && (switcherMode === 'real' || switcherMode === 'mock');
+  const showPvw = connected && !onAir && tally?.preview === camera && (switcherMode === 'real' || switcherMode === 'mock' || switcherMode === 'vmix' || switcherMode === 'obs');
 
   // ON AIR 중인 내 큐의 남은 시간
   let liveRemaining: number | null = null;

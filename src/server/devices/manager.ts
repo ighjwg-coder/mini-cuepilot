@@ -1,14 +1,16 @@
 // 장비 연결 관리: 설정 → 스위처 어댑터 + GPI 모듈 + 탈리 입력 구성.
 // 장비 연결 화면에서 설정을 저장하면 프로그램을 다시 시작하지 않고 바로 다시 연결한다.
-import type { DeviceSettings, DevicesSnapshot, SerialLogEntry } from '../../shared/devices';
+import { SECRET_KEYS, SECRET_MASK, type DeviceSettings, type DevicesSnapshot, type SerialLogEntry } from '../../shared/devices';
 import type { Tally } from '../../shared/protocol';
 import { DisabledAtemAdapter, MockAtemAdapter, RealAtemAdapter, TallyOnlyAdapter, type AtemAdapter } from '../atem';
 import { readDeviceSettings, resolveDevices, updateConfigFile, type ResolvedDevices } from './config';
 import { DisabledGpi, MockGpi, ModbusGpi, onAirFromInputs, type GpiModule } from './gpi';
 import { GpiSwitcherAdapter } from './gpiSwitcher';
 import { IkegamiRouterAdapter, parseHex } from './ikegami';
+import { ObsAdapter } from './obs';
 import { MockSerialLink, NodeSerialLink, type Parity, type SerialLink } from './serial';
 import { SwitchableAdapter } from './switchable';
+import { VmixAdapter } from './vmix';
 
 /** 실제 탈리 신호 (GPI 입력) — ShowRuntime 이 스위처 보고값보다 우선해서 쓴다 */
 export interface TallyInput {
@@ -26,6 +28,9 @@ export interface DeviceManagerOptions {
   serialFactory?: (path: string, opts: { baudRate: number; parity: Parity }) => SerialLink;
   gpiFactory?: (cfg: Exclude<ResolvedDevices['gpi'], { kind: 'none' }>, diCount: number, resetOutputs: number[]) => GpiModule;
   atemFactory?: (cfg: Extract<ResolvedDevices['switcher'], { kind: 'atem' }>) => AtemAdapter;
+  /** vMix·OBS 어댑터 (테스트용 교체) */
+  vmixFactory?: (cfg: Extract<ResolvedDevices['switcher'], { kind: 'vmix' }>) => AtemAdapter;
+  obsFactory?: (cfg: Extract<ResolvedDevices['switcher'], { kind: 'obs' }>) => AtemAdapter;
   log?: (msg: string, err?: unknown) => void;
 }
 
@@ -86,6 +91,7 @@ export class DeviceManager {
       if (!(k in next)) throw new Error(`알 수 없는 설정: ${k}`);
       if (typeof v !== 'string') throw new Error(`${k}: 문자열이어야 합니다`);
       if (/[\r\n]/.test(v)) throw new Error(`${k}: 줄바꿈은 넣을 수 없습니다`);
+      if (SECRET_KEYS.includes(k as keyof DeviceSettings) && v === SECRET_MASK) continue; // 화면에 가려 보낸 값 → 기존 유지
       next[k as keyof DeviceSettings] = v.trim();
     }
     const changed = Object.fromEntries(Object.entries(next).filter(([k, v]) => this.settings[k as keyof DeviceSettings] !== v));
@@ -98,7 +104,9 @@ export class DeviceManager {
 
   snapshot(tally: Tally): DevicesSnapshot {
     return {
-      settings: { ...this.settings },
+      settings: Object.fromEntries(
+        Object.entries(this.settings).map(([k, v]) => [k, SECRET_KEYS.includes(k as keyof DeviceSettings) && v ? SECRET_MASK : v]),
+      ) as DeviceSettings,
       configPath: this.opts.configPath,
       errors: [...this.resolved.errors],
       switcher: this.switcher.status(),
@@ -160,6 +168,14 @@ export class DeviceManager {
         adapter = (this.opts.atemFactory ?? defaultAtem)(sw);
         if (sw.tallyOnly) adapter = new TallyOnlyAdapter(adapter);
         break;
+      case 'vmix':
+        adapter = sw.host === 'mock' ? mockSwitcher() : (this.opts.vmixFactory ?? ((c) => new VmixAdapter(c)))(sw);
+        if (sw.tallyOnly) adapter = new TallyOnlyAdapter(adapter);
+        break;
+      case 'obs':
+        adapter = sw.host === 'mock' ? mockSwitcher() : (this.opts.obsFactory ?? ((c) => new ObsAdapter(c)))(sw);
+        if (sw.tallyOnly) adapter = new TallyOnlyAdapter(adapter);
+        break;
       case 'ikegami': {
         const link = sw.port.toLowerCase() === 'mock' ? new MockSerialLink() : (this.opts.serialFactory ?? defaultSerial)(sw.port, sw);
         adapter = new IkegamiRouterAdapter({ link, ...sw, log: (dir, text) => this.pushLog(dir, text) });
@@ -195,8 +211,12 @@ function defaultAtem(cfg: Extract<ResolvedDevices['switcher'], { kind: 'atem' }>
     case 'disabled':
       return new DisabledAtemAdapter();
     case 'mock':
-      return new MockAtemAdapter({ transitionMs: 1000, latencyMs: 5 });
+      return mockSwitcher();
     case 'real':
       return new RealAtemAdapter({ host: cfg.atem.host, port: cfg.atem.port, mixEffect: cfg.me - 1 });
   }
+}
+
+function mockSwitcher(): AtemAdapter {
+  return new MockAtemAdapter({ transitionMs: 1000, latencyMs: 5 });
 }

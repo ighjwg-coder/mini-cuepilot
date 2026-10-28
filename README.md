@@ -261,6 +261,24 @@ curl -X POST http://192.168.10.10:38080/api/show/command \
 - 장비 없이 시험: `IKEGAMI_PORT=mock` (보낸 바이트를 모니터에 기록), `GPI_HOST=mock` (화면에서 입력 채널을 눌러 켜고 끔).
 - 장비 연결 화면의 **시험 컷** 버튼과 **RS-422 송수신 모니터**(임의 16진수 전송)로 실제 장비 반응을 확인할 수 있습니다.
 
+### 3-7. vMix · OBS 연결 (Unreleased)
+
+장비 연결 화면에서 **vMix** 또는 **OBS Studio** 를 고르고 IP·카메라 매핑을 넣습니다. 둘 다 네트워크로 탈리를 읽어 오므로 GPI 모듈이 필요 없습니다.
+
+| | vMix (`SWITCHER=vmix`) | OBS Studio (`SWITCHER=obs`) |
+|---|---|---|
+| 연결 | TCP API, 기본 포트 **8099** (vMix 기본으로 열려 있음) | obs-websocket **v5**, 기본 포트 **4455** (OBS 28 이상 내장, 도구 → WebSocket 서버 설정에서 켜기) |
+| 카메라 매핑 | `VMIX_CAM_INPUTS` = vMix 입력 번호 | `OBS_CAM_SCENES` = 장면(Scene) 이름 |
+| 컷 | `PreviewInput` → `Cut` | 스튜디오 모드: 미리보기 장면 → 프로그램 / 아니면 프로그램 장면 변경 |
+| AUTO | `PreviewInput` → `Transition1` (vMix 에 설정한 1번 트랜지션) | 스튜디오 모드: `TriggerStudioModeTransition` / 아니면 컷과 같음 (OBS 에서 고른 트랜지션 적용) |
+| 탈리 | `SUBSCRIBE TALLY` — 입력별 PGM/PVW | 현재 프로그램 장면 하나 (장면 안에 겹친 다른 카메라는 모름) |
+| 단순 탈리 | `VMIX_TALLY_ONLY=1` | `OBS_TALLY_ONLY=1` |
+| 매크로·DSK 큐 | 미지원 | 미지원 |
+
+- 실제 vMix·OBS 장비 시험은 아직 하지 않았습니다. 공개된 프로토콜 문서 기준으로 만들고 가짜 서버로만 시험했습니다.
+- vMix 입력 번호는 입력 순서 번호라, vMix 에서 입력 순서를 바꾸면 매핑도 바꿔야 합니다.
+- OBS 비밀번호는 `config.env` 에 그대로 저장되고, 장비 연결 화면에는 `********` 로만 보입니다.
+
 ---
 
 ## 4. 폰으로 CueScreen 접속
@@ -322,6 +340,7 @@ curl -X POST http://192.168.10.10:38080/api/show/command \
 | 카메라맨 폰 | ⚙ → **화면 모드: 단순 탈리**, 또는 주소 `/cam/N?view=tally`. 화면 전체가 탈리 램프 (송출 중 빨강 / PVW 초록 / 그 외 어둡게) |
 | 이케가미 등 | 장비 연결 → 스위처 **사용 안 함** + **실제 탈리 읽기** 켬 (GPI 모듈이 스위처 탈리 출력을 읽음) |
 | ATEM | 장비 연결 → **탈리만 읽기 (컷은 보내지 않음)** 켬 (`ATEM_TALLY_ONLY=1`) |
+| vMix · OBS | 장비 연결 → **탈리만 읽기** 켬 (`VMIX_TALLY_ONLY=1` / `OBS_TALLY_ONLY=1`) |
 
 이때 디렉터 GO 는 큐만 넘기고 스위처에는 아무것도 보내지 않습니다. 컷은 운영자가 스위처에서 직접 합니다.
 

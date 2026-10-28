@@ -17,11 +17,15 @@ export function AtemBadge({ snapshot }: { snapshot: ShowSnapshot | null }) {
       ? '스위처 미사용'
       : atem.mode === 'mock'
         ? 'ATEM MOCK'
-        : atem.mode === 'ikegami'
-          ? `이케가미 ${atem.host}`
-          : atem.mode === 'gpi'
-            ? `GPI 컷 ${atem.host}`
-            : `ATEM ${atem.host}`;
+        : atem.mode === 'vmix'
+          ? `vMix ${atem.host}`
+          : atem.mode === 'obs'
+            ? `OBS ${atem.host}`
+            : atem.mode === 'ikegami'
+              ? `이케가미 ${atem.host}`
+              : atem.mode === 'gpi'
+                ? `GPI 컷 ${atem.host}`
+                : `ATEM ${atem.host}`;
   const cls = atem.mode === 'disabled' ? '' : atem.connected ? 'ok' : 'bad';
   return (
     <a className="badge" href="/devices" style={{ color: 'inherit', textDecoration: 'none' }} title={atem.lastError ?? atem.model ?? '장비 연결 설정'}>

@@ -17,10 +17,11 @@ export type ShowCommand =
 /**
  * 스위처(영상 전환 장비) 연결 상태. 이름은 v0.0.1 호환을 위해 AtemStatus 유지.
  *   disabled: 제어 안 함 / mock: 가상 ATEM / real: 실제 ATEM
+ *   vmix: vMix(TCP API) / obs: OBS Studio(obs-websocket v5)
  *   ikegami: 이케가미 라우터(RS-422) / gpi: GPI 모듈 접점 출력으로 컷
  */
 export interface AtemStatus {
-  mode: 'disabled' | 'mock' | 'real' | 'ikegami' | 'gpi';
+  mode: 'disabled' | 'mock' | 'real' | 'vmix' | 'obs' | 'ikegami' | 'gpi';
   host: string | null;
   connected: boolean;
   model: string | null;

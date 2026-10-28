@@ -507,3 +507,6 @@ select.dv-input {
 .dv-toast.bad {
   border-color: var(--pgm);
 }
+.dv-camcell-text input {
+  font-size: 14px;
+}

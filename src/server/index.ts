@@ -53,11 +53,13 @@ const SWITCHER_LABEL: Record<string, string> = {
   disabled: '사용 안 함',
   mock: '가상 ATEM (mock)',
   real: 'ATEM',
+  vmix: 'vMix',
+  obs: 'OBS Studio',
   ikegami: '이케가미 라우터 (RS-422)',
   gpi: 'GPI 접점 컷',
 };
 
-// 스위처(ATEM / 이케가미 라우터 / GPI) + GPI 탈리 입력. 장비 연결 화면에서 바꾸면 이 파일에 저장된다
+// 스위처(ATEM / vMix / OBS / 이케가미 라우터 / GPI) + GPI 탈리 입력. 장비 연결 화면에서 바꾸면 이 파일에 저장된다
 const devices = new DeviceManager({
   configPath: dataDir?.configPath ?? resolve('.env'),
   log: (msg, err) => console.warn(`  [장비] ${msg}: ${(err as Error)?.message ?? err ?? ''}`),
