@@ -55,7 +55,7 @@ describe('이케가미 명령 템플릿', () => {
 describe('장비 설정 해석', () => {
   it('SWITCHER 미설정 → v0.0.2 처럼 ATEM_HOST 사용', () => {
     const r = resolveDevices(readDeviceSettings({ ATEM_HOST: 'mock' }));
-    expect(r.switcher).toEqual({ kind: 'atem', atem: { kind: 'mock' }, me: 1 });
+    expect(r.switcher).toEqual({ kind: 'atem', atem: { kind: 'mock' }, me: 1, tallyOnly: false });
     expect(r.gpi).toEqual({ kind: 'none' });
     expect(r.tally.source).toBe('switcher');
     expect(r.errors).toEqual([]);

@@ -11,7 +11,7 @@ const SWITCHERS = [
   { value: 'atem', icon: '🎛️', title: 'ATEM', desc: 'Blackmagic ATEM 스위처 (네트워크)' },
   { value: 'ikegami', icon: '🔀', title: '이케가미 라우터', desc: 'RS-422 케이블로 크로스포인트 전환' },
   { value: 'gpi', icon: '🔌', title: 'GPI 접점', desc: 'GPI 모듈 출력으로 장비 버튼 누르기' },
-  { value: 'none', icon: '⏸️', title: '사용 안 함', desc: '스위처 없이 큐 진행·폰 화면만' },
+  { value: 'none', icon: '⏸️', title: '사용 안 함', desc: '컷 제어 없이 큐 진행·폰 화면만 (GPI 실제 탈리는 ③에서)' },
 ] as const;
 
 const MODE_LABEL: Record<string, string> = {
@@ -156,7 +156,7 @@ export function DevicesPage() {
           <StatusItem
             label="스위처"
             state={sw.mode === 'disabled' ? 'off' : sw.connected ? 'ok' : 'bad'}
-            value={MODE_LABEL[sw.mode] + (sw.host && sw.mode !== 'mock' && sw.host !== MOCK ? ` · ${sw.host}` : sw.host === MOCK ? ' · 가상' : '')}
+            value={MODE_LABEL[sw.mode] + (sw.tallyOnly ? ' · 탈리만' : '') + (sw.host && sw.mode !== 'mock' && sw.host !== MOCK ? ` · ${sw.host}` : sw.host === MOCK ? ' · 가상' : '')}
             sub={sw.mode === 'disabled' ? '큐 진행만 합니다' : sw.connected ? (sw.model ?? '연결됨') : '연결 안 됨'}
             error={sw.lastError}
           />
@@ -233,6 +233,12 @@ export function DevicesPage() {
                 <Field label="M/E 번호" help="대부분 1. M/E 가 여러 개인 모델에서 다른 M/E 를 쓸 때만 바꾸세요.">
                   <Segments value={form.ATEM_ME} options={['1', '2', '3', '4']} onChange={(v) => set({ ATEM_ME: v })} />
                 </Field>
+                <Toggle
+                  checked={form.ATEM_TALLY_ONLY === '1'}
+                  onChange={(on) => set({ ATEM_TALLY_ONLY: on ? '1' : '0' })}
+                  label="탈리만 읽기 (컷은 보내지 않음)"
+                  help="단순 탈리. GO 를 눌러도 ATEM 은 그대로이고, 컷은 운영자가 직접 합니다. 캠큐는 ATEM 이 알려 주는 실제 송출만 카메라맨 폰에 보여 줍니다."
+                />
               </>
             )}
 
@@ -347,6 +353,11 @@ export function DevicesPage() {
         {/* ── ③ 실제 탈리 ── */}
         <section className="dv-card">
           <StepTitle n={kind === 'none' ? 2 : 3} title="실제 탈리 읽기" badge="선택" />
+          {kind === 'none' && (
+            <p className="dv-hint">
+              <b>단순 탈리</b>: 스위처에는 아무것도 보내지 않고, 켜 두면 GPI 모듈이 읽은 실제 송출만 카메라맨 폰에 보여 줍니다 (이케가미 등 — 컷은 패널에서 직접).
+            </p>
+          )}
           <Toggle
             checked={tallyOn}
             onChange={(on) => set({ TALLY_SOURCE: on ? 'gpi' : 'switcher' })}

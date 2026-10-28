@@ -25,7 +25,7 @@ PORT=38080
 #   atem    : Blackmagic ATEM (아래 ATEM_HOST)
 #   ikegami : 이케가미 라우터 RS-422 (IKEGAMI_*)
 #   gpi     : GPI 모듈 접점 출력으로 컷 (GPI_*)
-#   none    : 스위처 제어 안 함 (큐 진행만)
+#   none    : 스위처 제어 안 함 (큐 진행만, TALLY_SOURCE=gpi 면 GPI 실제 탈리만 표시)
 SWITCHER=atem
 
 # ATEM 스위처
@@ -36,6 +36,9 @@ ATEM_HOST=mock
 
 # 제어할 M/E 버스 번호 (대부분 1)
 # ATEM_ME=1
+
+# 1 = ATEM 에 컷을 보내지 않고 탈리만 읽기 (단순 탈리 — 컷은 운영자가 직접)
+# ATEM_TALLY_ONLY=0
 
 # 이케가미 라우터 (RS-422, USB-RS422 변환기)
 # IKEGAMI_PORT=COM3

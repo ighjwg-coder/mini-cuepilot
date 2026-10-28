@@ -181,6 +181,20 @@ export function HomePage() {
               </a>
             ))}
           </div>
+          <p className="muted" style={{ marginBottom: 6 }}>
+            <b>단순 탈리</b> — 샷·메모 없이 화면 전체가 탈리 램프 (송출 중 빨강). 폰 화면 ⚙ → 화면 모드, 또는 주소 끝에{' '}
+            <span className="mono">?view=tally</span>
+          </p>
+          <div className="cam-links">
+            {Array.from({ length: 8 }, (_, i) => i + 1).map((n) => (
+              <a key={n} href={`/cam/${n}?view=tally`} style={{ borderLeft: `6px solid ${cameraColor(n)}` }}>
+                CAM {n} · 탈리
+                <div className="muted mono" style={{ fontSize: 11, fontWeight: 400 }}>
+                  /cam/{n}?view=tally
+                </div>
+              </a>
+            ))}
+          </div>
         </section>
       </main>
     </>

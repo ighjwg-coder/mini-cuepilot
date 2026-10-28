@@ -1,6 +1,8 @@
 // 카메라맨 화면(CueScreen) 설정 — 폰마다 따로 저장 (localStorage)
 export type VibrateMode = 'off' | 'warn' | 'all';
 export type Orientation = 'auto' | 'portrait' | 'landscape';
+/** cue: 샷·메모·카운트다운이 있는 큐 화면 / tally: 탈리 색만 크게 보여 주는 단순 탈리 */
+export type CueView = 'cue' | 'tally';
 
 export interface CueSettings {
   /** off: 진동 없음 / warn: 3초 전 예고만 / all: 예고 + ON AIR 순간 */
@@ -11,11 +13,13 @@ export interface CueSettings {
   blink: boolean;
   /** 화면 방향 (앱에서만 적용) */
   orientation: Orientation;
+  /** 화면 모드 */
+  view: CueView;
 }
 
 const KEY = 'camcue.cueScreen.v1';
 
-export const DEFAULT_CUE_SETTINGS: CueSettings = { vibrate: 'warn', brightness: 100, blink: true, orientation: 'auto' };
+export const DEFAULT_CUE_SETTINGS: CueSettings = { vibrate: 'warn', brightness: 100, blink: true, orientation: 'auto', view: 'cue' };
 
 export function loadCueSettings(): CueSettings {
   try {
@@ -26,6 +30,7 @@ export function loadCueSettings(): CueSettings {
       brightness: typeof raw.brightness === 'number' && raw.brightness >= 10 && raw.brightness <= 100 ? raw.brightness : 100,
       blink: raw.blink !== false,
       orientation: raw.orientation === 'portrait' || raw.orientation === 'landscape' ? raw.orientation : 'auto',
+      view: raw.view === 'tally' ? 'tally' : 'cue',
     };
   } catch {
     return DEFAULT_CUE_SETTINGS;

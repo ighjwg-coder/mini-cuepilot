@@ -528,3 +528,72 @@
   font-size: 3.2vmin;
   color: #9ca3af;
 }
+
+/* 단순 탈리: 화면 전체가 탈리 램프 */
+.cs-simple {
+  align-items: center;
+  justify-content: center;
+  background: #0b0b0d;
+  transition: background-color 0.12s;
+}
+.cs-simple-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: max(2.5vmin, env(safe-area-inset-top)) max(4vmin, env(safe-area-inset-right)) 0 max(4vmin, env(safe-area-inset-left));
+}
+.cs-simple-label {
+  font-weight: 900;
+  font-size: 5vmin;
+  color: var(--cam);
+}
+.cs-simple-cam {
+  font-weight: 900;
+  font-size: 50vmin;
+  line-height: 0.9;
+  color: #3f3f46;
+  font-variant-numeric: tabular-nums;
+}
+.cs-simple-state {
+  font-weight: 900;
+  font-size: 10vmin;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+  min-height: 1.2em;
+}
+.cs-simple-next {
+  font-weight: 800;
+  font-size: 5.5vmin;
+  color: #facc15;
+}
+.cs-simple-onair {
+  background: #e00000;
+}
+.cs-simple-onair .cs-simple-cam,
+.cs-simple-onair .cs-simple-state,
+.cs-simple-pvw .cs-simple-cam,
+.cs-simple-pvw .cs-simple-state {
+  color: #fff;
+}
+.cs-simple-onair .cs-simple-label,
+.cs-simple-pvw .cs-simple-label,
+.cs-simple-onair .cs-gear,
+.cs-simple-pvw .cs-gear {
+  color: #fff;
+}
+.cs-simple-pvw {
+  background: #0f7a35;
+}
+/* 추정 탈리(실측 아님): 어두운 빨강 + 점선 테두리로 실측과 구분 */
+.cs-simple-est {
+  background: #5a0000;
+}
+.cs-simple-est::after {
+  content: '';
+  position: absolute;
+  inset: 2vmin;
+  border: 1.6vmin dashed #ff4d4d;
+  border-radius: 2vmin;
+  pointer-events: none;
+}

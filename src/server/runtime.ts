@@ -266,8 +266,8 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
     for (const e of effects) {
       if (e.type === 'TIMECODE_STOP') this.opts.timecode.stop();
       else if (e.type === 'TIMECODE_START') this.opts.timecode.start();
-      else if (this.rehearsal) {
-        // 리허설: 스위처에는 아무 것도 보내지 않음
+      else if (this.rehearsal || this.opts.atem.status().tallyOnly) {
+        // 리허설·단순 탈리: 스위처에는 아무 것도 보내지 않음
         continue;
       } else {
         // AUTO 는 트랜지션 중 PVW 를 바꾸면 안 되므로 제외. macro·dsk 도 필요 시 컷하므로 컷과 같이 취급
