@@ -188,9 +188,9 @@ export function HomePage() {
           <div className="cam-links">
             {Array.from({ length: 8 }, (_, i) => i + 1).map((n) => (
               <a key={n} href={`/cam/${n}?view=tally`} style={{ borderLeft: `6px solid ${cameraColor(n)}` }}>
-                CAM {n} · 탈리
-                <div className="muted mono" style={{ fontSize: 11, fontWeight: 400 }}>
-                  /cam/{n}?view=tally
+                CAM {n}
+                <div className="muted" style={{ fontSize: 11, fontWeight: 400 }}>
+                  단순 탈리
                 </div>
               </a>
             ))}
