@@ -597,3 +597,24 @@
   border-radius: 2vmin;
   pointer-events: none;
 }
+
+/* 내가 송출 중이 아닐 때 지금 나가는 것 (다른 카메라 / 카메라 외 소스) */
+.cs-now {
+  align-self: flex-start;
+  font-size: 4vmin;
+  font-weight: 800;
+  color: #e5e7eb;
+  background: #1f2937;
+  border-radius: 1.5vmin;
+  padding: 1vmin 2.4vmin;
+}
+.cs-simple-now {
+  margin-top: 4vmin;
+  font-size: 5vmin;
+  font-weight: 800;
+  color: #e5e7eb;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2vmin;
+  padding: 1.2vmin 3vmin;
+  text-align: center;
+}
