@@ -114,6 +114,19 @@ function CueScreen({ camera }: { camera: number }) {
   /** 큐로는 내 차례인데 실제로는 송출되지 않음 */
   const notOnAir = connected && realTally && isCurrent && !tallyOn && !switching;
   // 실제 스위처 PVW 를 아는 경우(ATEM)만 PVW 표시. GPI·이케가미 모드의 "PVW" 는 캠큐 내부 값이라 표시하지 않는다
+  /**
+   * 내가 송출 중이 아닐 때 "지금 무엇이 나가는지": 다른 유인 카메라면 번호, 실측 탈리인데 어떤 카메라도 안 켜졌으면
+   * PPT·천장 카메라 같은 카메라 외 소스 (이름까지는 모름)
+   */
+  const othersOnAir = onAirCams.filter((n) => n !== camera);
+  const nowLine =
+    !connected || tallyOn
+      ? null
+      : othersOnAir.length > 0
+        ? `지금 송출: ${othersOnAir.map((n) => `CAM ${n}`).join(' + ')}`
+        : realTally && !rehearsal
+          ? '지금 송출: 카메라 외 소스 (PPT · 천장 등)'
+          : null;
   const showPvw = connected && !onAir && tally?.preview === camera && (switcherMode === 'real' || switcherMode === 'mock');
 
   // ON AIR 중인 내 큐의 남은 시간
@@ -219,6 +232,7 @@ function CueScreen({ camera }: { camera: number }) {
           {look === 'onair' ? `ON AIR${rehearsal ? ' (리허설)' : estimated ? ' (추정)' : ''}` : look === 'pvw' ? 'PVW' : connected ? '대기' : ''}
         </div>
         {look !== 'onair' && phase === 'next' && <div className="cs-simple-next">▶ 다음이 내 차례</div>}
+        {look !== 'onair' && nowLine && <div className="cs-simple-now">{nowLine}</div>}
 
         {phase === 'offline' && (
           <div className="cs-offline-cover">
@@ -313,6 +327,7 @@ function CueScreen({ camera }: { camera: number }) {
         </div>
       )}
       {notOnAir && <div className="cs-band-sub">패널에서 다른 카메라로 컷됨 — 디렉터 확인</div>}
+      {phase !== 'onair' && nowLine && <div className="cs-now">{nowLine}</div>}
 
       {changed && <div className="cs-changed">✎ 큐시트가 바뀌었습니다 — 내 샷을 다시 확인하세요</div>}
 

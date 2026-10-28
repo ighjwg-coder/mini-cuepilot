@@ -54,3 +54,32 @@ describe('단순 탈리 (컷 안 보냄)', () => {
     rt.stop();
   });
 });
+
+describe('ATEM 소스별 탈리 (디졸브 중 두 대)', () => {
+  it('programSources: TlSr 에서 PGM 입력만 번호순', async () => {
+    const { programSources } = await import('../src/server/atem/real');
+    expect(programSources({ 5: { program: true, preview: false }, 2: { program: true, preview: true }, 3: { program: false, preview: true } })).toEqual([2, 5]);
+    expect(programSources({})).toEqual([]);
+  });
+
+  it('AUTO 전환 중에는 두 카메라 모두 ON AIR, 끝나면 한 대', async () => {
+    const atem = new MockAtemAdapter({ transitionMs: 80, latencyMs: 0 });
+    await atem.connect();
+    const rt = new ShowRuntime({ atem, timecode: new ManualTimecodeSource(), log: () => {} });
+    await atem.setPreview(3);
+    await atem.autoTransition();
+    expect(rt.tally()).toMatchObject({ onAir: [1, 3], source: 'atem' });
+    await new Promise((r) => setTimeout(r, 120));
+    expect(rt.tally()).toMatchObject({ program: 3, onAir: [3] });
+    rt.stop();
+  });
+
+  it('카메라 번호 범위 밖 입력(PC · 미디어)은 ON AIR 카메라로 치지 않음', async () => {
+    const atem = new MockAtemAdapter({ transitionMs: 0, latencyMs: 0 });
+    await atem.connect();
+    const rt = new ShowRuntime({ atem, timecode: new ManualTimecodeSource(), log: () => {} });
+    atem.simulatePanelCut(10);
+    expect(rt.tally()).toMatchObject({ program: 10, onAir: [] });
+    rt.stop();
+  });
+});
