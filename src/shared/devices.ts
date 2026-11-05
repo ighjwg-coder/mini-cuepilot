@@ -2,7 +2,7 @@
 // 값은 config.env(설치판) / .env(개발) 의 KEY=VALUE 로 저장되고, 장비 연결 화면에서 바꿀 수 있다.
 import type { AtemStatus, Tally } from './protocol';
 
-export const SWITCHER_KINDS = ['atem', 'ikegami', 'gpi', 'none'] as const;
+export const SWITCHER_KINDS = ['atem', 'vmix', 'obs', 'ikegami', 'gpi', 'none'] as const;
 export type SwitcherKind = (typeof SWITCHER_KINDS)[number];
 
 export const TALLY_SOURCES = ['switcher', 'gpi'] as const;
@@ -10,10 +10,17 @@ export type TallySourceKind = (typeof TALLY_SOURCES)[number];
 
 /** 설정 키 → 설명. 장비 연결 화면과 config.env 안내문이 같은 정의를 쓴다 */
 export const DEVICE_KEYS = {
-  SWITCHER: '스위처 종류: atem / ikegami / gpi / none',
+  SWITCHER: '스위처 종류: atem / vmix / obs / ikegami / gpi / none',
   ATEM_HOST: 'ATEM IP (mock = 가상 스위처, 비움 = 사용 안 함)',
   ATEM_ME: '제어할 ATEM M/E 번호 (보통 1)',
   ATEM_TALLY_ONLY: '1 = ATEM 에 컷을 보내지 않고 탈리만 읽기 (단순 탈리)',
+  VMIX_HOST: 'vMix PC IP[:포트] (기본 8099, mock = 가상 스위처)',
+  VMIX_CAM_INPUTS: 'CAM1, CAM2 … 순서대로 vMix 입력 번호 (쉼표 구분, 0 = 없음)',
+  VMIX_TALLY_ONLY: '1 = vMix 에 컷을 보내지 않고 탈리만 읽기 (단순 탈리)',
+  OBS_HOST: 'OBS PC IP[:포트] (기본 4455, mock = 가상 스위처)',
+  OBS_PASSWORD: 'OBS WebSocket 서버 비밀번호 (인증을 껐으면 비움)',
+  OBS_CAM_SCENES: 'CAM1, CAM2 … 순서대로 OBS 장면 이름 (쉼표 구분, 빈칸 = 없음)',
+  OBS_TALLY_ONLY: '1 = OBS 에 장면 전환을 보내지 않고 탈리만 읽기 (단순 탈리)',
   IKEGAMI_PORT: 'RS-422 변환기 COM 포트 (예: COM3, mock = 가상 포트)',
   IKEGAMI_BAUD: '통신 속도 (매뉴얼 기준 38400)',
   IKEGAMI_PARITY: '패리티: odd / even / none (매뉴얼 기준 odd)',
@@ -33,6 +40,10 @@ export const DEVICE_KEYS = {
   GPI_POLL_MS: '입력 읽기 주기(ms)',
 } as const;
 export type DeviceKey = keyof typeof DEVICE_KEYS;
+
+/** 화면(GET /api/devices)에는 비밀번호 대신 이 값을 보낸다. 저장할 때 이 값이 오면 기존 비밀번호 유지 */
+export const SECRET_MASK = '********';
+export const SECRET_KEYS: readonly DeviceKey[] = ['OBS_PASSWORD'];
 export type DeviceSettings = Record<DeviceKey, string>;
 
 export const DEVICE_DEFAULTS: DeviceSettings = {
@@ -40,6 +51,13 @@ export const DEVICE_DEFAULTS: DeviceSettings = {
   ATEM_HOST: '',
   ATEM_ME: '1',
   ATEM_TALLY_ONLY: '0',
+  VMIX_HOST: '',
+  VMIX_CAM_INPUTS: '1,2,3,4,5,6,7,8',
+  VMIX_TALLY_ONLY: '0',
+  OBS_HOST: '',
+  OBS_PASSWORD: '',
+  OBS_CAM_SCENES: 'CAM 1,CAM 2,CAM 3,CAM 4,CAM 5,CAM 6,CAM 7,CAM 8',
+  OBS_TALLY_ONLY: '0',
   IKEGAMI_PORT: '',
   IKEGAMI_BAUD: '38400',
   IKEGAMI_PARITY: 'odd',

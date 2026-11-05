@@ -9,6 +9,8 @@ import './devices.css';
 
 const SWITCHERS = [
   { value: 'atem', icon: '🎛️', title: 'ATEM', desc: 'Blackmagic ATEM 스위처 (네트워크)' },
+  { value: 'vmix', icon: '💻', title: 'vMix', desc: 'vMix TCP API (네트워크, 포트 8099)' },
+  { value: 'obs', icon: '📡', title: 'OBS Studio', desc: 'OBS WebSocket (네트워크, 포트 4455)' },
   { value: 'ikegami', icon: '🔀', title: '이케가미 라우터', desc: 'RS-422 케이블로 크로스포인트 전환' },
   { value: 'gpi', icon: '🔌', title: 'GPI 접점', desc: 'GPI 모듈 출력으로 장비 버튼 누르기' },
   { value: 'none', icon: '⏸️', title: '사용 안 함', desc: '컷 제어 없이 큐 진행·폰 화면만 (GPI 실제 탈리는 ③에서)' },
@@ -18,6 +20,8 @@ const MODE_LABEL: Record<string, string> = {
   disabled: '사용 안 함',
   mock: 'ATEM (가상 연습)',
   real: 'ATEM',
+  vmix: 'vMix',
+  obs: 'OBS Studio',
   ikegami: '이케가미 라우터',
   gpi: 'GPI 접점',
 };
@@ -242,6 +246,76 @@ export function DevicesPage() {
               </>
             )}
 
+            {kind === 'vmix' && (
+              <>
+                <Toggle
+                  checked={form.VMIX_HOST === MOCK}
+                  onChange={(on) => set({ VMIX_HOST: on ? MOCK : '' })}
+                  label="가상 스위처로 연습"
+                  help="vMix 없이 화면 흐름만 확인합니다. 실제 vMix 에 연결하려면 끄세요."
+                />
+                {form.VMIX_HOST !== MOCK && (
+                  <Field
+                    label="vMix PC IP 주소"
+                    help="vMix 가 켜진 PC 의 IP. 캠큐와 같은 PC 면 127.0.0.1. 포트가 기본(8099)이 아니면 IP:포트. vMix 의 TCP API 는 따로 켤 필요 없이 기본으로 열려 있습니다 (Windows 방화벽에서 8099 허용 필요할 수 있음)."
+                  >
+                    <input className="dv-input" value={form.VMIX_HOST} onChange={(e) => set({ VMIX_HOST: e.target.value })} placeholder="127.0.0.1" />
+                  </Field>
+                )}
+                <Field label="카메라별 vMix 입력 번호" help="vMix 화면 아래 입력 칸 왼쪽 위의 번호. vMix 에서 입력 순서를 바꾸면 여기도 바꿔야 합니다. 안 쓰는 카메라는 비워 두세요.">
+                  <CamGrid value={form.VMIX_CAM_INPUTS} prefix="IN" onChange={(v) => set({ VMIX_CAM_INPUTS: v })} />
+                </Field>
+                <Toggle
+                  checked={form.VMIX_TALLY_ONLY === '1'}
+                  onChange={(on) => set({ VMIX_TALLY_ONLY: on ? '1' : '0' })}
+                  label="탈리만 읽기 (컷은 보내지 않음)"
+                  help="단순 탈리. GO 를 눌러도 vMix 는 그대로이고, 컷은 운영자가 직접 합니다. vMix 가 알려 주는 실제 송출만 카메라맨 폰에 보여 줍니다."
+                />
+              </>
+            )}
+
+            {kind === 'obs' && (
+              <>
+                <Toggle
+                  checked={form.OBS_HOST === MOCK}
+                  onChange={(on) => set({ OBS_HOST: on ? MOCK : '' })}
+                  label="가상 스위처로 연습"
+                  help="OBS 없이 화면 흐름만 확인합니다. 실제 OBS 에 연결하려면 끄세요."
+                />
+                {form.OBS_HOST !== MOCK && (
+                  <>
+                    <Field
+                      label="OBS PC IP 주소"
+                      help="OBS → 도구 → WebSocket 서버 설정 → '연결 정보 표시' 의 서버 IP. 같은 PC 면 127.0.0.1. 포트가 기본(4455)이 아니면 IP:포트. 'WebSocket 서버 사용' 을 켜야 합니다 (OBS 28 이상)."
+                    >
+                      <input className="dv-input" value={form.OBS_HOST} onChange={(e) => set({ OBS_HOST: e.target.value })} placeholder="127.0.0.1" />
+                    </Field>
+                    <Field label="WebSocket 비밀번호" help="같은 화면의 '서버 비밀번호'. 인증을 껐으면 비워 두세요. 저장된 비밀번호는 화면에 ******** 로 표시됩니다.">
+                      <input
+                        className="dv-input"
+                        type="password"
+                        autoComplete="off"
+                        value={form.OBS_PASSWORD}
+                        onChange={(e) => set({ OBS_PASSWORD: e.target.value })}
+                      />
+                    </Field>
+                  </>
+                )}
+                <Field
+                  label="카메라별 OBS 장면 이름"
+                  help="각 카메라를 보여 주는 장면(Scene) 이름을 OBS 와 똑같이 (띄어쓰기·대소문자 포함). 탈리는 '지금 프로그램 장면' 하나로 판단합니다. 장면 안에 다른 카메라가 겹쳐 있는 것까지는 알 수 없습니다."
+                >
+                  <SceneGrid value={form.OBS_CAM_SCENES} onChange={(v) => set({ OBS_CAM_SCENES: v })} />
+                </Field>
+                <Toggle
+                  checked={form.OBS_TALLY_ONLY === '1'}
+                  onChange={(on) => set({ OBS_TALLY_ONLY: on ? '1' : '0' })}
+                  label="탈리만 읽기 (장면 전환은 보내지 않음)"
+                  help="단순 탈리. GO 를 눌러도 OBS 는 그대로이고, 장면 전환은 운영자가 직접 합니다."
+                />
+              </>
+            )}
+
             {kind === 'ikegami' && (
               <>
                 <Field label="COM 포트" help="USB-RS422 변환기를 꽂으면 목록에 나타납니다. 장비 없이 연습하려면 '가상 포트'.">
@@ -364,6 +438,9 @@ export function DevicesPage() {
             label="GPI 모듈로 실제 송출 신호 읽기"
             help="스위처의 탈리 접점을 읽어 폰 화면의 빨간 테두리를 실제 송출 기준으로 표시합니다. 패널에서 직접 컷해도 반영됩니다."
           />
+          {!tallyOn && (kind === 'vmix' || kind === 'obs') && (
+            <p className="dv-hint">꺼 두세요. {kind === 'vmix' ? 'vMix' : 'OBS'} 는 지금 송출 중인 것을 네트워크로 알려 주므로 GPI 모듈이 필요 없습니다.</p>
+          )}
           {!tallyOn && kind === 'ikegami' && (
             <p className="dv-hint">
               꺼 두어도 됩니다. 이때 탈리는 <b>캠큐가 보낸 전환 명령</b> 기준으로 표시되고, 조작 패널에서 직접 컷한 것은 반영되지 않습니다. GPI 입력 모듈이 있을 때만 켜세요.
@@ -631,6 +708,29 @@ function Segments({
 }
 
 /** "3,5,,7" ↔ CAM 1~8 칸별 숫자 입력 */
+function SceneGrid({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const cells = Array.from({ length: 8 }, (_, i) => value.split(',')[i]?.trim() ?? '');
+  const update = (i: number, v: string) => {
+    const next = [...cells];
+    next[i] = v.replace(/,/g, '');
+    let last = next.length - 1;
+    while (last >= 0 && !next[last]) last--;
+    onChange(next.slice(0, last + 1).join(','));
+  };
+  return (
+    <div className="dv-camgrid">
+      {cells.map((c, i) => (
+        <label key={i} className="dv-camcell" style={{ ['--cam' as string]: cameraColor(i + 1) }}>
+          <span className="dv-camcell-name">CAM {i + 1}</span>
+          <span className="dv-camcell-input dv-camcell-text">
+            <input value={c} placeholder="—" onChange={(e) => update(i, e.target.value)} />
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 function CamGrid({ value, prefix, onChange }: { value: string; prefix: string; onChange: (v: string) => void }) {
   const cells = Array.from({ length: 8 }, (_, i) => {
     const n = value.split(',')[i]?.trim() ?? '';

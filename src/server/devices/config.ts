@@ -19,6 +19,8 @@ export interface ResolvedDevices {
   switcher:
     | { kind: 'none' }
     | { kind: 'atem'; atem: AtemConfig; me: number; tallyOnly: boolean }
+    | { kind: 'vmix'; host: string; port?: number; camInputs: number[]; tallyOnly: boolean }
+    | { kind: 'obs'; host: string; port?: number; password: string; camScenes: string[]; tallyOnly: boolean }
     | ({ kind: 'ikegami'; port: string; baudRate: number; parity: Parity } & Pick<IkegamiOptions, 'pgmOutput' | 'camInputs' | 'takeTemplate'>)
     | { kind: 'gpi'; cutOutputs: number[]; pulseMs: number };
   gpi:
@@ -58,6 +60,18 @@ export function resolveDevices(s: DeviceSettings): ResolvedDevices {
     return parts;
   };
 
+  const flag = (key: DeviceKey) => s[key] === '1' || s[key].toLowerCase() === 'true';
+  /** "mock" / IP / IP:포트 */
+  const hostPort = (key: DeviceKey): { host: string; port?: number } | null => {
+    if (s[key].toLowerCase() === 'mock') return { host: 'mock' };
+    const m = /^([^\s:]+)(?::(\d{1,5}))?$/.exec(s[key]);
+    if (!m) {
+      errors.push(`${key}=${s[key]} — IP 또는 IP:포트 형식이어야 합니다`);
+      return null;
+    }
+    return { host: m[1], ...(m[2] ? { port: Number(m[2]) } : {}) };
+  };
+
   // ── 스위처 ──
   let kind = s.SWITCHER.toLowerCase() as SwitcherKind;
   if (!SWITCHER_KINDS.includes(kind)) {
@@ -67,8 +81,22 @@ export function resolveDevices(s: DeviceSettings): ResolvedDevices {
   let switcher: ResolvedDevices['switcher'] = { kind: 'none' };
   if (kind === 'atem') {
     const me = int('ATEM_ME', 1, 8);
-    const tallyOnly = s.ATEM_TALLY_ONLY === '1' || s.ATEM_TALLY_ONLY.toLowerCase() === 'true';
-    switcher = { kind: 'atem', atem: parseAtemHost(s.ATEM_HOST), me, tallyOnly };
+    switcher = { kind: 'atem', atem: parseAtemHost(s.ATEM_HOST), me, tallyOnly: flag('ATEM_TALLY_ONLY') };
+  } else if (kind === 'vmix') {
+    if (!s.VMIX_HOST) errors.push('VMIX_HOST — vMix 가 켜진 PC 의 IP 를 지정해 주세요 (같은 PC 면 127.0.0.1, 시험용 mock)');
+    else {
+      const hp = hostPort('VMIX_HOST');
+      if (hp) switcher = { kind: 'vmix', ...hp, camInputs: list('VMIX_CAM_INPUTS', 1000), tallyOnly: flag('VMIX_TALLY_ONLY') };
+    }
+  } else if (kind === 'obs') {
+    if (!s.OBS_HOST) errors.push('OBS_HOST — OBS 가 켜진 PC 의 IP 를 지정해 주세요 (같은 PC 면 127.0.0.1, 시험용 mock)');
+    else {
+      const hp = hostPort('OBS_HOST');
+      const camScenes = s.OBS_CAM_SCENES.split(',').map((x) => x.trim());
+      const named = camScenes.filter(Boolean);
+      if (new Set(named).size !== named.length) errors.push('OBS_CAM_SCENES — 같은 장면 이름이 두 카메라에 지정되어 있습니다');
+      if (hp) switcher = { kind: 'obs', ...hp, password: s.OBS_PASSWORD, camScenes, tallyOnly: flag('OBS_TALLY_ONLY') };
+    }
   } else if (kind === 'ikegami') {
     const parity = s.IKEGAMI_PARITY.toLowerCase();
     if (!['odd', 'even', 'none'].includes(parity)) errors.push(`IKEGAMI_PARITY=${s.IKEGAMI_PARITY} — odd / even / none`);
@@ -106,12 +134,8 @@ export function resolveDevices(s: DeviceSettings): ResolvedDevices {
       doAddress: int('GPI_DO_ADDR', 0, 65535),
       pollMs: int('GPI_POLL_MS', 10, 5000),
     };
-    if (s.GPI_HOST.toLowerCase() === 'mock') gpi = { kind: 'mock', host: 'mock', ...common };
-    else {
-      const m = /^([^\s:]+)(?::(\d{1,5}))?$/.exec(s.GPI_HOST);
-      if (!m) errors.push(`GPI_HOST=${s.GPI_HOST} — IP 또는 IP:포트 형식이어야 합니다`);
-      else gpi = { kind: 'real', host: m[1], ...(m[2] ? { port: Number(m[2]) } : {}), ...common };
-    }
+    const hp = hostPort('GPI_HOST');
+    if (hp) gpi = hp.host === 'mock' ? { kind: 'mock', host: 'mock', ...common } : { kind: 'real', ...hp, ...common };
   }
 
   // ── 탈리 ──
@@ -121,9 +145,7 @@ export function resolveDevices(s: DeviceSettings): ResolvedDevices {
     source = 'switcher';
   }
   if (source === 'gpi' && gpi.kind === 'none') errors.push('TALLY_SOURCE=gpi — GPI_HOST(모듈 IP)를 지정해 주세요');
-  const invert = s.GPI_TALLY_INVERT === '1' || s.GPI_TALLY_INVERT.toLowerCase() === 'true';
-
-  return { switcher, gpi, tally: { source, inputs: list('GPI_TALLY_INPUTS', 64), invert }, errors };
+  return { switcher, gpi, tally: { source, inputs: list('GPI_TALLY_INPUTS', 64), invert: flag('GPI_TALLY_INVERT') }, errors };
 }
 
 /**

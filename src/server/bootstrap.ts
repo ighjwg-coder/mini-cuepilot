@@ -23,6 +23,8 @@ PORT=38080
 
 # 스위처 종류
 #   atem    : Blackmagic ATEM (아래 ATEM_HOST)
+#   vmix    : vMix (VMIX_*)
+#   obs     : OBS Studio (OBS_*)
 #   ikegami : 이케가미 라우터 RS-422 (IKEGAMI_*)
 #   gpi     : GPI 모듈 접점 출력으로 컷 (GPI_*)
 #   none    : 스위처 제어 안 함 (큐 진행만, TALLY_SOURCE=gpi 면 GPI 실제 탈리만 표시)
@@ -39,6 +41,19 @@ ATEM_HOST=mock
 
 # 1 = ATEM 에 컷을 보내지 않고 탈리만 읽기 (단순 탈리 — 컷은 운영자가 직접)
 # ATEM_TALLY_ONLY=0
+
+# vMix (TCP API, 기본 포트 8099). 같은 PC 면 127.0.0.1, mock = 가상 스위처
+# VMIX_HOST=127.0.0.1
+# CAM1, CAM2 … 순서대로 vMix 입력 번호 (0 = 없음)
+# VMIX_CAM_INPUTS=1,2,3,4,5,6,7,8
+# VMIX_TALLY_ONLY=0
+
+# OBS Studio (obs-websocket v5, OBS 28 이상 · 기본 포트 4455). 도구 → WebSocket 서버 설정에서 켜기
+# OBS_HOST=127.0.0.1
+# OBS_PASSWORD=
+# CAM1, CAM2 … 순서대로 OBS 장면 이름 (쉼표 구분)
+# OBS_CAM_SCENES=CAM 1,CAM 2,CAM 3,CAM 4,CAM 5,CAM 6,CAM 7,CAM 8
+# OBS_TALLY_ONLY=0
 
 # 이케가미 라우터 (RS-422, USB-RS422 변환기)
 # IKEGAMI_PORT=COM3
