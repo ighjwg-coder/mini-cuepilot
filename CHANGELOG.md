@@ -6,12 +6,18 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-05
+
 ### 추가
 - **vMix 지원** (`SWITCHER=vmix`) — TCP API(8099)로 컷·AUTO(Transition1), 입력별 탈리(`SUBSCRIBE TALLY`).
   CAM ↔ vMix 입력 번호 매핑(`VMIX_CAM_INPUTS`), 탈리만 읽기(`VMIX_TALLY_ONLY`)
 - **OBS Studio 지원** (`SWITCHER=obs`) — obs-websocket v5(4455, 비밀번호 인증)로 장면 전환·스튜디오 모드 트랜지션,
   프로그램 장면 기준 탈리. CAM ↔ 장면 이름 매핑(`OBS_CAM_SCENES`), 탈리만 읽기(`OBS_TALLY_ONLY`)
 - 장비 연결 화면에 vMix · OBS 설정 (IP, 카메라 매핑, 비밀번호, 탈리만 읽기). 비밀번호는 화면에 가려서 표시
+
+### 알려진 제한
+- vMix · OBS 는 공개 프로토콜 문서대로 만들고 가짜 서버로 시험했습니다. 실제 vMix · OBS 프로그램과의 시험은 아직입니다 (README 3-7)
+- OBS 탈리는 현재 프로그램 장면 하나 기준입니다. 장면 안에 겹친 다른 카메라나 트랜지션 중 두 장면은 알 수 없습니다
 
 ## [0.0.10] - 2026-10-28
 
