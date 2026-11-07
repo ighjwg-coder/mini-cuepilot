@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { DEVICE_DEFAULTS, DEVICE_KEYS, SWITCHER_KINDS, TALLY_SOURCES, type DeviceKey, type DeviceSettings, type SwitcherKind, type TallySourceKind } from '../../shared/devices';
 import { parseAtemHost, type AtemConfig } from '../atem';
 import { parseTakeTemplate, type IkegamiOptions } from './ikegami';
+import { parseLinkNames } from './ikegamiLan';
 import type { Parity } from './serial';
 
 /** 환경변수 → 설정값 (없는 키는 기본값). SWITCHER 가 없으면 v0.0.2 이전과 같이 ATEM_HOST 로 동작 */
@@ -21,6 +22,7 @@ export interface ResolvedDevices {
     | { kind: 'atem'; atem: AtemConfig; me: number; tallyOnly: boolean }
     | { kind: 'vmix'; host: string; port?: number; camInputs: number[]; tallyOnly: boolean }
     | { kind: 'obs'; host: string; port?: number; password: string; camScenes: string[]; tallyOnly: boolean }
+    | { kind: 'ikegami-lan'; host: string; port?: number; camLinks: number[]; names: Record<number, string>; myId: number }
     | ({ kind: 'ikegami'; port: string; baudRate: number; parity: Parity } & Pick<IkegamiOptions, 'pgmOutput' | 'camInputs' | 'takeTemplate'>)
     | { kind: 'gpi'; cutOutputs: number[]; pulseMs: number };
   gpi:
@@ -97,6 +99,20 @@ export function resolveDevices(s: DeviceSettings): ResolvedDevices {
       if (new Set(named).size !== named.length) errors.push('OBS_CAM_SCENES — 같은 장면 이름이 두 카메라에 지정되어 있습니다');
       if (hp) switcher = { kind: 'obs', ...hp, password: s.OBS_PASSWORD, camScenes, tallyOnly: flag('OBS_TALLY_ONLY') };
     }
+  } else if (kind === 'ikegami-lan') {
+    if (!s.IKEGAMI_LAN_HOST) errors.push('IKEGAMI_LAN_HOST — 이케가미 프레임 IP 를 지정해 주세요 (예: 192.168.1.59, 시험용 mock)');
+    let names: Record<number, string> = {};
+    try {
+      names = parseLinkNames(s.IKEGAMI_LAN_NAMES);
+    } catch (err) {
+      errors.push(`IKEGAMI_LAN_NAMES — ${(err as Error).message}`);
+    }
+    const idRaw = s.IKEGAMI_LAN_ID.trim().toLowerCase();
+    const myId = idRaw.startsWith('0x') ? parseInt(idRaw.slice(2), 16) : Number(idRaw);
+    const idOk = Number.isInteger(myId) && myId >= 1 && myId <= 0xfe && myId !== 0x50;
+    if (!idOk) errors.push(`IKEGAMI_LAN_ID=${s.IKEGAMI_LAN_ID} — 0x01~0xFE 사이, 터치 화면 ID(0x50)와 다른 값이어야 합니다`);
+    const hp = s.IKEGAMI_LAN_HOST ? hostPort('IKEGAMI_LAN_HOST') : null;
+    if (hp) switcher = { kind: 'ikegami-lan', ...hp, camLinks: list('IKEGAMI_LAN_CAM_LINKS', 16), names, myId: idOk ? myId : 0x51 };
   } else if (kind === 'ikegami') {
     const parity = s.IKEGAMI_PARITY.toLowerCase();
     if (!['odd', 'even', 'none'].includes(parity)) errors.push(`IKEGAMI_PARITY=${s.IKEGAMI_PARITY} — odd / even / none`);

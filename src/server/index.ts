@@ -56,6 +56,7 @@ const SWITCHER_LABEL: Record<string, string> = {
   vmix: 'vMix',
   obs: 'OBS Studio',
   ikegami: '이케가미 라우터 (RS-422)',
+  'ikegami-lan': '이케가미 랜 탈리 (읽기 전용)',
   gpi: 'GPI 접점 컷',
 };
 

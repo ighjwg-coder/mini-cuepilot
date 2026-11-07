@@ -12,6 +12,7 @@ const SWITCHERS = [
   { value: 'vmix', icon: '💻', title: 'vMix', desc: 'vMix TCP API (네트워크, 포트 8099)' },
   { value: 'obs', icon: '📡', title: 'OBS Studio', desc: 'OBS WebSocket (네트워크, 포트 4455)' },
   { value: 'ikegami', icon: '🔀', title: '이케가미 라우터', desc: 'RS-422 케이블로 크로스포인트 전환' },
+  { value: 'ikegami-lan', icon: '📶', title: '이케가미 랜 탈리', desc: '프레임 랜으로 송출 탈리만 읽기 (컷은 패널에서)' },
   { value: 'gpi', icon: '🔌', title: 'GPI 접점', desc: 'GPI 모듈 출력으로 장비 버튼 누르기' },
   { value: 'none', icon: '⏸️', title: '사용 안 함', desc: '컷 제어 없이 큐 진행·폰 화면만 (GPI 실제 탈리는 ③에서)' },
 ] as const;
@@ -23,6 +24,7 @@ const MODE_LABEL: Record<string, string> = {
   vmix: 'vMix',
   obs: 'OBS Studio',
   ikegami: '이케가미 라우터',
+  'ikegami-lan': '이케가미 랜 탈리',
   gpi: 'GPI 접점',
 };
 
@@ -174,7 +176,18 @@ export function DevicesPage() {
           <div className="dv-status-item">
             <div className="dv-status-label">지금 송출</div>
             <div className="dv-status-value">
-              <CamChip n={snap.tally.program} /> <span className="dv-muted">다음</span> <CamChip n={snap.tally.preview} />
+              {(snap.tally.program || !snap.tally.onAirLabels?.length) && <CamChip n={snap.tally.program} />}
+              {snap.tally.onAirLabels?.map((l) => (
+                <span key={l} className="cam-chip" style={{ background: '#d1d5db', marginLeft: 4 }}>
+                  {l}
+                </span>
+              ))}
+              {sw.mode !== 'ikegami-lan' && (
+                <>
+                  {' '}
+                  <span className="dv-muted">다음</span> <CamChip n={snap.tally.preview} />
+                </>
+              )}
             </div>
             <div className="dv-status-sub">
               {snap.tally.source === 'gpi'
@@ -271,6 +284,41 @@ export function DevicesPage() {
                   label="탈리만 읽기 (컷은 보내지 않음)"
                   help="단순 탈리. GO 를 눌러도 vMix 는 그대로이고, 컷은 운영자가 직접 합니다. vMix 가 알려 주는 실제 송출만 카메라맨 폰에 보여 줍니다."
                 />
+              </>
+            )}
+
+            {kind === 'ikegami-lan' && (
+              <>
+                <p className="dv-hint" style={{ marginBottom: 12 }}>
+                  <b>탈리만 읽습니다.</b> GO 는 큐만 넘기고 컷은 패널에서 직접 합니다. 프레임은 랜 접속을 <b>한 대만</b> 받기 때문에, 캠큐가 붙어 있는 동안 터치 화면에는 빨간
+                  Dis-connect 가 뜨고 메뉴를 쓸 수 없습니다 (버튼 컷은 그대로 됩니다). 터치 화면 랜선을 빼 두면 캠큐가 연결되고, 메뉴가 필요하면 캠큐 스위처를 '사용 안 함'으로 바꾸고
+                  터치 화면 선을 다시 꽂으세요.
+                </p>
+                <Toggle
+                  checked={form.IKEGAMI_LAN_HOST === MOCK}
+                  onChange={(on) => set({ IKEGAMI_LAN_HOST: on ? MOCK : '' })}
+                  label="가상 스위처로 연습"
+                  help="프레임 없이 화면 흐름만 확인합니다. 실제 프레임에 연결하려면 끄세요."
+                />
+                {form.IKEGAMI_LAN_HOST !== MOCK && (
+                  <Field
+                    label="프레임 IP 주소"
+                    help="이케가미 프레임 ETHER 의 주소 (현장 기준 192.168.1.59). 캠큐 PC 랜도 같은 대역(예: 192.168.1.222)이어야 하고, 터치 화면(192.168.1.60)과 겹치지 않아야 합니다."
+                  >
+                    <input className="dv-input" value={form.IKEGAMI_LAN_HOST} onChange={(e) => set({ IKEGAMI_LAN_HOST: e.target.value })} placeholder="192.168.1.59" />
+                  </Field>
+                )}
+                <Field label="카메라별 스위처 링크 번호" help="각 카메라가 스위처의 몇 번 링크인지 (1~16). 예: C1~C4 = 1~4, ENG1·4·5·6 = 12~15. 안 쓰는 카메라는 비워 두세요.">
+                  <CamGrid value={form.IKEGAMI_LAN_CAM_LINKS} prefix="링크" onChange={(v) => set({ IKEGAMI_LAN_CAM_LINKS: v })} />
+                </Field>
+                <Field label="카메라 외 소스 이름 (선택)" help='카메라가 아닌 소스가 송출될 때 폰과 디렉터에 이름을 보여 줍니다. "링크번호=이름"을 쉼표로 구분. 비워 두면 "카메라 외 소스"로 표시됩니다.'>
+                  <input
+                    className="dv-input"
+                    value={form.IKEGAMI_LAN_NAMES}
+                    onChange={(e) => set({ IKEGAMI_LAN_NAMES: e.target.value })}
+                    placeholder="6=X2,7=P1,8=P2,9=PLAY,10=PPT,11=INT"
+                  />
+                </Field>
               </>
             )}
 
@@ -438,8 +486,8 @@ export function DevicesPage() {
             label="GPI 모듈로 실제 송출 신호 읽기"
             help="스위처의 탈리 접점을 읽어 폰 화면의 빨간 테두리를 실제 송출 기준으로 표시합니다. 패널에서 직접 컷해도 반영됩니다."
           />
-          {!tallyOn && (kind === 'vmix' || kind === 'obs') && (
-            <p className="dv-hint">꺼 두세요. {kind === 'vmix' ? 'vMix' : 'OBS'} 는 지금 송출 중인 것을 네트워크로 알려 주므로 GPI 모듈이 필요 없습니다.</p>
+          {!tallyOn && (kind === 'vmix' || kind === 'obs' || kind === 'ikegami-lan') && (
+            <p className="dv-hint">꺼 두세요. {kind === 'vmix' ? 'vMix 는' : kind === 'obs' ? 'OBS 는' : '이케가미 프레임은'} 지금 송출 중인 것을 네트워크로 알려 주므로 GPI 모듈이 필요 없습니다.</p>
           )}
           {!tallyOn && kind === 'ikegami' && (
             <p className="dv-hint">
@@ -529,21 +577,29 @@ export function DevicesPage() {
         <section className="dv-card">
           <StepTitle n={kind === 'none' ? 3 : 4} title="시험" />
           {dirty && <p className="dv-hint warn">먼저 아래 [저장]을 눌러야 바뀐 설정으로 시험됩니다.</p>}
-          <div className="dv-sub">카메라 컷 — 실제 송출 화면이 바뀝니다. 행사 중에는 누르지 마세요.</div>
-          <div className="dv-cams">
-            {Array.from({ length: 8 }, (_, i) => i + 1).map((cam) => (
-              <button
-                key={cam}
-                className="dv-btn dv-cam-btn"
-                disabled={!sw.connected || busy}
-                style={{ ['--cam' as string]: cameraColor(cam) }}
-                onClick={() => confirm(`CAM ${cam} 을(를) 송출로 전환할까요?`) && run(`CAM ${cam} 전환 명령을 보냈습니다`, () => api.testTake(cam))}
-              >
-                CAM {cam}
-              </button>
-            ))}
-          </div>
-          {!sw.connected && <div className="dv-hint">스위처가 연결되면 누를 수 있습니다.</div>}
+          {sw.tallyOnly ? (
+            <p className="dv-hint">
+              탈리만 읽는 설정이라 캠큐에서 컷을 보내지 않습니다. 패널에서 직접 컷하고, 맨 위 <b>지금 송출</b>이 따라 바뀌는지 확인하세요.
+            </p>
+          ) : (
+            <>
+              <div className="dv-sub">카메라 컷 — 실제 송출 화면이 바뀝니다. 행사 중에는 누르지 마세요.</div>
+              <div className="dv-cams">
+                {Array.from({ length: 8 }, (_, i) => i + 1).map((cam) => (
+                  <button
+                    key={cam}
+                    className="dv-btn dv-cam-btn"
+                    disabled={!sw.connected || busy}
+                    style={{ ['--cam' as string]: cameraColor(cam) }}
+                    onClick={() => confirm(`CAM ${cam} 을(를) 송출로 전환할까요?`) && run(`CAM ${cam} 전환 명령을 보냈습니다`, () => api.testTake(cam))}
+                  >
+                    CAM {cam}
+                  </button>
+                ))}
+              </div>
+              {!sw.connected && <div className="dv-hint">스위처가 연결되면 누를 수 있습니다.</div>}
+            </>
+          )}
 
           {gpi.connected && (
             <>

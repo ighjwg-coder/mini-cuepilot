@@ -358,6 +358,7 @@ select.dv-input {
 .dv-camcell-input small {
   color: var(--muted);
   font-size: 11px;
+  white-space: nowrap;
 }
 .dv-camcell input {
   width: 100%;

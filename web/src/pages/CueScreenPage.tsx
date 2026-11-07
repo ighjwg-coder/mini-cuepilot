@@ -116,14 +116,15 @@ function CueScreen({ camera }: { camera: number }) {
   // 실제 스위처 PVW 를 아는 경우(ATEM)만 PVW 표시. GPI·이케가미 모드의 "PVW" 는 캠큐 내부 값이라 표시하지 않는다
   /**
    * 내가 송출 중이 아닐 때 "지금 무엇이 나가는지": 다른 유인 카메라면 번호, 실측 탈리인데 어떤 카메라도 안 켜졌으면
-   * PPT·천장 카메라 같은 카메라 외 소스 (이름까지는 모름)
+   * PPT·천장 카메라 같은 카메라 외 소스. 스위처가 소스 이름까지 알려 주면(이케가미 랜 탈리) 그 이름으로
    */
   const othersOnAir = onAirCams.filter((n) => n !== camera);
+  const labels = tally?.onAirLabels ?? [];
   const nowLine =
     !connected || tallyOn
       ? null
-      : othersOnAir.length > 0
-        ? `지금 송출: ${othersOnAir.map((n) => `CAM ${n}`).join(' + ')}`
+      : othersOnAir.length > 0 || labels.length > 0
+        ? `지금 송출: ${[...othersOnAir.map((n) => `CAM ${n}`), ...labels].join(' + ')}`
         : realTally && !rehearsal
           ? '지금 송출: 카메라 외 소스 (PPT · 천장 등)'
           : null;

@@ -26,6 +26,7 @@ PORT=38080
 #   vmix    : vMix (VMIX_*)
 #   obs     : OBS Studio (OBS_*)
 #   ikegami : 이케가미 라우터 RS-422 (IKEGAMI_*)
+#   ikegami-lan : 이케가미 프레임 랜 탈리, 읽기 전용 (IKEGAMI_LAN_*)
 #   gpi     : GPI 모듈 접점 출력으로 컷 (GPI_*)
 #   none    : 스위처 제어 안 함 (큐 진행만, TALLY_SOURCE=gpi 면 GPI 실제 탈리만 표시)
 SWITCHER=atem
@@ -54,6 +55,14 @@ ATEM_HOST=mock
 # CAM1, CAM2 … 순서대로 OBS 장면 이름 (쉼표 구분)
 # OBS_CAM_SCENES=CAM 1,CAM 2,CAM 3,CAM 4,CAM 5,CAM 6,CAM 7,CAM 8
 # OBS_TALLY_ONLY=0
+
+# 이케가미 프레임 랜 탈리 (읽기 전용, TCP 3004). 프레임은 한 대만 접속을 받으므로 캠큐가 붙어 있는 동안 터치 화면 메뉴는 끊김
+# IKEGAMI_LAN_HOST=192.168.1.59
+# CAM1, CAM2 … 순서대로 스위처 링크 번호 (1~16)
+# IKEGAMI_LAN_CAM_LINKS=1,2,3,4,12,13,14,15
+# 카메라 외 소스 이름 ("지금 송출: PPT" 표시용)
+# IKEGAMI_LAN_NAMES=6=X2,7=P1,8=P2,9=PLAY,10=PPT,11=INT
+# IKEGAMI_LAN_ID=0x51
 
 # 이케가미 라우터 (RS-422, USB-RS422 변환기)
 # IKEGAMI_PORT=COM3

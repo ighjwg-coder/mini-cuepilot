@@ -331,7 +331,9 @@ function LivePanel({
           </div>
         )}
         {!snapshot.rehearsal && (tally.source === 'gpi' || tally.source === 'atem') && onAir.length === 0 && (
-          <div className="cam-warn">📺 지금 송출: 카메라 외 소스 (PPT · 천장 등) — 유인 카메라는 모두 대기</div>
+          <div className="cam-warn">
+            📺 지금 송출: {tally.onAirLabels?.length ? tally.onAirLabels.join(' + ') : '카메라 외 소스 (PPT · 천장 등)'} — 유인 카메라는 모두 대기
+          </div>
         )}
         <div className="tally-grid">
           {Array.from({ length: 8 }, (_, i) => i + 1).map((n) => (
