@@ -10,7 +10,7 @@
 //   전원 (왼쪽 옆면)  : 2초 누르면 켜짐 · 6초 누르면 꺼짐
 //
 // 설정 모드 (처음 켤 때 · B 2초)
-//   "CamCue-Tally-XXXX" 와이파이가 열린다 → 폰으로 접속하면 설정 화면이 뜬다 (안 뜨면 http://192.168.4.1)
+//   "CamCue-Tally-XXXX" 와이파이(비밀번호 camcue1234)가 열린다 → 폰으로 접속하면 설정 화면이 뜬다 (안 뜨면 http://4.3.2.1)
 //   공유기 이름·비밀번호·카메라 번호 입력. 캠큐 주소는 비워 두면 같은 와이파이에서 자동으로 찾는다.
 //
 // 연결이 끊기면 빨강을 그대로 두지 않고 "연결 끊김" 화면으로 바꾼다 (옛 탈리를 계속 보여 주지 않음).
@@ -23,12 +23,16 @@
 #include <Preferences.h>
 #include <esp_netif.h>
 
-#define FW_VERSION "1.1"
+#define FW_VERSION "1.2"
 
 static const uint16_t DISCOVERY_PORT = 38089;   // 캠큐 자동 검색 (UDP)
 static const uint16_t DEFAULT_HTTP_PORT = 38080;
 static const uint32_t STREAM_TIMEOUT_MS = 10000; // 서버는 4초마다 확인 줄을 보낸다
 static const uint8_t MAX_CAM = 8;
+// 설정 모드 와이파이. 주소는 공인 IP 모양(4.3.2.1)이어야 갤럭시가 "로그인 필요" 로 보고 설정 화면을 띄운다
+// (192.168.x.x 같은 내부 주소로 답하면 삼성 폰은 인터넷 확인을 포기하고 "인터넷 연결 안 됨" 으로만 표시. WLED 도 같은 이유로 4.3.2.1 사용)
+static const char* SETUP_AP_PASSWORD = "camcue1234";
+static const IPAddress SETUP_AP_IP(4, 3, 2, 1);
 
 // 타입은 함수보다 먼저 둔다 (Arduino 가 함수 원형을 맨 앞 함수 위에 자동으로 넣기 때문)
 enum class Link : uint8_t { WifiConnecting, Searching, Connecting, Live, Lost, Https, NoEndpoint };
@@ -686,9 +690,10 @@ static void startSetupMode() {
   WiFi.scanDelete();
 
   const String ap = apName();
-  const IPAddress apIp(192, 168, 4, 1);
+  const IPAddress apIp = SETUP_AP_IP;
   WiFi.mode(WIFI_AP);
-  WiFi.softAP(ap.c_str());
+  WiFi.softAPConfig(apIp, apIp, IPAddress(255, 255, 255, 0));
+  WiFi.softAP(ap.c_str(), SETUP_AP_PASSWORD);
   WiFi.softAPConfig(apIp, apIp, IPAddress(255, 255, 255, 0));
   offerDnsOnAp(apIp);
   delay(200);
@@ -702,10 +707,11 @@ static void startSetupMode() {
   M5.Display.startWrite();
   M5.Display.fillScreen(BG_DARK);
   drawText("설정 모드", 8, 4, &fonts::efontKR_16_b, 2, FG_WARN, BG_DARK, top_left, 0);
-  drawText("1. 폰 와이파이에서 연결", 8, 40, &fonts::efontKR_16_b, 1, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
-  drawText(ap, 8, 60, &fonts::FreeSansBold9pt7b, 1, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
-  drawText("2. 안 뜨면 폰 주소창에", 8, 86, &fonts::efontKR_16_b, 1, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
-  drawText(String("http://") + WiFi.softAPIP().toString(), 8, 106, &fonts::FreeSansBold9pt7b, 1, FG_WHITE, BG_DARK, top_left, 0);
+  drawText("1. 폰 와이파이 연결", 8, 40, &fonts::efontKR_16_b, 1, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
+  drawText(ap, 8, 58, &fonts::FreeSansBold9pt7b, 1, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
+  drawText(String("비밀번호 ") + SETUP_AP_PASSWORD, 8, 75, &fonts::efontKR_16_b, 1, FG_WARN, BG_DARK, top_left, M5.Display.width() - 16);
+  drawText("2. 안 뜨면 주소창에", 8, 96, &fonts::efontKR_16_b, 1, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
+  drawText(String("http://") + WiFi.softAPIP().toString(), 8, 114, &fonts::FreeSansBold9pt7b, 1, FG_WHITE, BG_DARK, top_left, 0);
   M5.Display.endWrite();
   drawSetupStatus(true);
 }
