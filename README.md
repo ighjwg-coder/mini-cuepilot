@@ -279,7 +279,7 @@ curl -X POST http://192.168.10.10:38080/api/show/command \
 - vMix 입력 번호는 입력 순서 번호라, vMix 에서 입력 순서를 바꾸면 매핑도 바꿔야 합니다.
 - OBS 비밀번호는 `config.env` 에 그대로 저장되고, 장비 연결 화면에는 `********` 로만 보입니다.
 
-### 3-8. 이케가미 랜 탈리 (Unreleased)
+### 3-8. 이케가미 랜 탈리 (0.1.1~)
 
 이케가미 프레임(DVF-130 / MuPS)의 **ETHER 단자로 송출 탈리만 읽습니다.** 배선 없이 랜선 하나로 단순 탈리를 할 수 있습니다. 컷은 보내지 않으므로 GO 는 큐만 넘기고, 컷은 패널에서 직접 합니다.
 
@@ -394,7 +394,7 @@ netsh advfirewall firewall add rule name="CamCue" dir=in action=allow protocol=T
 
 CueScreen 하단에 `화면 유지 ON` / `화면 유지 ON(호환)` / `화면 유지 불가` 로 상태가 표시됩니다.
 
-### 4-5. 탈리 램프 — M5StickC Plus (Unreleased)
+### 4-5. 탈리 램프 — M5StickC Plus (0.1.1~)
 
 폰 대신(또는 폰과 함께) **M5StickC Plus** 를 카메라 위 탈리 램프로 쓸 수 있습니다. 펌웨어와 설치 방법은 [`firmware/m5stickc-plus-tally`](firmware/m5stickc-plus-tally/README.md).
 
