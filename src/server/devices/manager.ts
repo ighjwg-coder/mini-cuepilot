@@ -7,6 +7,7 @@ import { readDeviceSettings, resolveDevices, updateConfigFile, type ResolvedDevi
 import { DisabledGpi, MockGpi, ModbusGpi, onAirFromInputs, type GpiModule } from './gpi';
 import { GpiSwitcherAdapter } from './gpiSwitcher';
 import { IkegamiRouterAdapter, parseHex } from './ikegami';
+import { IkegamiLanAdapter } from './ikegamiLan';
 import { ObsAdapter } from './obs';
 import { MockSerialLink, NodeSerialLink, type Parity, type SerialLink } from './serial';
 import { SwitchableAdapter } from './switchable';
@@ -31,6 +32,7 @@ export interface DeviceManagerOptions {
   /** vMix·OBS 어댑터 (테스트용 교체) */
   vmixFactory?: (cfg: Extract<ResolvedDevices['switcher'], { kind: 'vmix' }>) => AtemAdapter;
   obsFactory?: (cfg: Extract<ResolvedDevices['switcher'], { kind: 'obs' }>) => AtemAdapter;
+  ikegamiLanFactory?: (cfg: Extract<ResolvedDevices['switcher'], { kind: 'ikegami-lan' }>) => AtemAdapter;
   log?: (msg: string, err?: unknown) => void;
 }
 
@@ -131,6 +133,7 @@ export class DeviceManager {
   async testTake(camera: number) {
     const inner = this.switcher.current;
     if (!inner.status().connected) throw new Error('스위처가 연결되어 있지 않습니다');
+    if (inner.status().tallyOnly) throw new Error('탈리만 읽는 설정이라 컷을 보내지 않습니다 — 패널에서 컷하세요');
     if (inner instanceof IkegamiRouterAdapter || inner instanceof GpiSwitcherAdapter) return inner.take(camera);
     await inner.setPreview(camera);
     await inner.cut();
@@ -175,6 +178,13 @@ export class DeviceManager {
       case 'obs':
         adapter = sw.host === 'mock' ? mockSwitcher() : (this.opts.obsFactory ?? ((c) => new ObsAdapter(c)))(sw);
         if (sw.tallyOnly) adapter = new TallyOnlyAdapter(adapter);
+        break;
+      case 'ikegami-lan':
+        // 랜 탈리는 읽기 전용 → 가상 스위처로 연습할 때도 컷을 보내지 않는 단순 탈리로
+        adapter =
+          sw.host === 'mock'
+            ? new TallyOnlyAdapter(mockSwitcher())
+            : (this.opts.ikegamiLanFactory ?? ((c) => new IkegamiLanAdapter(c)))(sw);
         break;
       case 'ikegami': {
         const link = sw.port.toLowerCase() === 'mock' ? new MockSerialLink() : (this.opts.serialFactory ?? defaultSerial)(sw.port, sw);

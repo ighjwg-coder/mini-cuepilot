@@ -13,6 +13,7 @@ import { createAccessPolicy, type AccessPolicy } from './access';
 import { ConflictError, type ServiceRepo } from './repo';
 import { LOG_NAME, listRunLogs } from './runLog';
 import type { ShowRuntime } from './runtime';
+import { registerTallyRoutes } from './tallyFeed';
 import { attachWebSocket } from './ws';
 
 export interface AppDeps {
@@ -90,6 +91,8 @@ export async function buildApp({
   // app/name: 폰 앱이 네트워크 스캔으로 CamCue 서버를 알아보는 데 사용
   app.get('/api/health', async () => ({ ok: true, app: APP_NAME, name: hostname(), version: APP_VERSION, wsClients: ws.clientCount() }));
   app.get('/api/atem', async () => runtime.snapshot().atem);
+  // 탈리 램프 기기(M5StickC Plus 등)용: 카메라 한 대 상태만 가볍게
+  registerTallyRoutes(app, runtime);
 
   /** 폰 접속용 LAN 주소. 포트는 요청 Host 헤더 기준(개발 모드 Vite 5173 / 운영 38080 모두 대응) */
   app.get('/api/info', async (req) => {

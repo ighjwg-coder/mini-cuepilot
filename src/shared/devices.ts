@@ -2,7 +2,7 @@
 // 값은 config.env(설치판) / .env(개발) 의 KEY=VALUE 로 저장되고, 장비 연결 화면에서 바꿀 수 있다.
 import type { AtemStatus, Tally } from './protocol';
 
-export const SWITCHER_KINDS = ['atem', 'vmix', 'obs', 'ikegami', 'gpi', 'none'] as const;
+export const SWITCHER_KINDS = ['atem', 'vmix', 'obs', 'ikegami', 'ikegami-lan', 'gpi', 'none'] as const;
 export type SwitcherKind = (typeof SWITCHER_KINDS)[number];
 
 export const TALLY_SOURCES = ['switcher', 'gpi'] as const;
@@ -10,7 +10,7 @@ export type TallySourceKind = (typeof TALLY_SOURCES)[number];
 
 /** 설정 키 → 설명. 장비 연결 화면과 config.env 안내문이 같은 정의를 쓴다 */
 export const DEVICE_KEYS = {
-  SWITCHER: '스위처 종류: atem / vmix / obs / ikegami / gpi / none',
+  SWITCHER: '스위처 종류: atem / vmix / obs / ikegami / ikegami-lan / gpi / none',
   ATEM_HOST: 'ATEM IP (mock = 가상 스위처, 비움 = 사용 안 함)',
   ATEM_ME: '제어할 ATEM M/E 번호 (보통 1)',
   ATEM_TALLY_ONLY: '1 = ATEM 에 컷을 보내지 않고 탈리만 읽기 (단순 탈리)',
@@ -27,6 +27,10 @@ export const DEVICE_KEYS = {
   IKEGAMI_PGM_OUT: '송출(PGM)로 쓰는 라우터 출력 번호',
   IKEGAMI_CAM_INPUTS: 'CAM1, CAM2 … 순서대로 라우터 입력 번호 (쉼표 구분)',
   IKEGAMI_TAKE: '크로스포인트 전환 명령 (16진수 + {IN} {OUT} 등 자리표시)',
+  IKEGAMI_LAN_HOST: '이케가미 프레임 IP[:포트] (기본 3004, mock = 가상 스위처) — 랜 탈리(읽기 전용)',
+  IKEGAMI_LAN_CAM_LINKS: 'CAM1, CAM2 … 순서대로 스위처 링크 번호 (1~16, 쉼표 구분, 0 = 없음)',
+  IKEGAMI_LAN_NAMES: '카메라 외 소스 이름 (예: 6=X2,10=PPT) — "지금 송출: PPT" 표시용',
+  IKEGAMI_LAN_ID: '캠큐 쪽 통신 ID (기본 0x51, 터치 화면은 0x50)',
   TALLY_SOURCE: '탈리 기준: switcher (스위처 보고값) / gpi (GPI 모듈 실측)',
   GPI_HOST: 'GPI 모듈(Modbus TCP) IP[:포트] (mock = 가상 모듈, 비움 = 사용 안 함)',
   GPI_UNIT: 'Modbus 유닛 ID (보통 1)',
@@ -64,6 +68,10 @@ export const DEVICE_DEFAULTS: DeviceSettings = {
   IKEGAMI_PGM_OUT: '1',
   IKEGAMI_CAM_INPUTS: '1,2,3,4,5,6,7,8',
   IKEGAMI_TAKE: '',
+  IKEGAMI_LAN_HOST: '',
+  IKEGAMI_LAN_CAM_LINKS: '1,2,3,4,5,6,7,8',
+  IKEGAMI_LAN_NAMES: '',
+  IKEGAMI_LAN_ID: '0x51',
   TALLY_SOURCE: 'switcher',
   GPI_HOST: '',
   GPI_UNIT: '1',

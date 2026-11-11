@@ -18,6 +18,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 탈리 램프 펌웨어 (M5StickC Plus) → Release 에 첨부. 실패해도 Windows 배포판은 그대로 (첨부만 빠짐)
+  firmware:
+    uses: ./.github/workflows/firmware.yml
+
   # 안드로이드 앱 (카메라맨 폰용). Windows 배포판에 동봉 + Release 에 첨부
   android:
     runs-on: ubuntu-latest
@@ -49,7 +53,8 @@ jobs:
           retention-days: 14
 
   windows:
-    needs: android
+    needs: [android, firmware]
+    if: ${{ !cancelled() && needs.android.result == 'success' }}
     runs-on: windows-latest
     timeout-minutes: 40
     defaults:
@@ -92,6 +97,12 @@ jobs:
         with:
           name: android-apk
           path: apk
+
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: camcue-tally-m5stickc-plus
+          path: firmware-bin
 
       - name: 패키지 조립
         run: |
@@ -194,6 +205,17 @@ jobs:
           Pop-Location
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
+      - name: 탈리 램프 펌웨어 (빌드됐으면 첨부)
+        run: |
+          $v = '${{ steps.ver.outputs.version }}'
+          $bin = Get-ChildItem firmware-bin\*.bin -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($bin) {
+            Copy-Item $bin.FullName "release\CamCue-Tally-M5StickCPlus-v$v.bin"
+            Write-Host "펌웨어 첨부: CamCue-Tally-M5StickCPlus-v$v.bin ($($bin.Length) bytes)"
+          } else {
+            Write-Warning '탈리 램프 펌웨어 빌드 결과가 없어 이번 배포에는 첨부하지 않습니다'
+          }
+
       - name: 설치 파일 (Inno Setup)
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
@@ -206,6 +228,10 @@ jobs:
           $v = '${{ steps.ver.outputs.version }}'
           $notes = npx tsx scripts/changelog.ts notes $v
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $fw = ''
+          if (Test-Path "release\CamCue-Tally-M5StickCPlus-v$v.bin") {
+            $fw = "| ``CamCue-Tally-M5StickCPlus-v$v.bin`` | 탈리 램프 펌웨어 (M5StickC Plus) — 크롬에서 esptool-js 로 주소 0x0 에 쓰기 (firmware 폴더 README 참고) |"
+          }
           @"
           ## 다운로드
 
@@ -214,6 +240,7 @@ jobs:
           | ``CamCue-Setup-v$v-win-x64.exe`` | **설치판 (권장)** — 시작 메뉴·바탕화면 바로가기, 방화벽 자동 허용 |
           | ``CamCue-portable-v$v-win-x64.zip`` | 포터블 — 압축 풀고 ``CamCue.cmd`` 실행 (관리자 권한 불필요) |
           | ``CamCue-Android-v$v.apk`` | 카메라맨 폰 앱 (안드로이드 7 이상) — 캠큐 PC 홈 화면의 QR 로도 설치 가능 |
+          $fw
 
           - Windows 10/11 64bit. Node.js 설치 불필요 (내장)
           - 처음 실행 시 "Windows의 PC 보호" 창 → **추가 정보 → 실행** (코드 서명 미적용)
@@ -230,6 +257,7 @@ jobs:
           path: |
             release/*.zip
             release/*.exe
+            release/*.bin
             apk/*.apk
           retention-days: 14
 
@@ -246,4 +274,5 @@ jobs:
           files: |
             release/*.zip
             release/*.exe
+            release/*.bin
             apk/*.apk

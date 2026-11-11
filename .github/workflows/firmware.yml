@@ -1,0 +1,84 @@
+name: 탈리 램프 펌웨어 (M5StickC Plus)
+
+# firmware/ 가 바뀌면 컴파일해서 한 파일(.bin)로 묶는다.
+# - stable : 배포용. ESP32 코어·라이브러리 버전을 고정해 같은 결과가 나오게 한다 → 아티팩트 / Release 첨부
+# - latest : Arduino IDE 로 직접 빌드하는 사람(최신 코어·라이브러리)도 컴파일되는지 확인만
+on:
+  push:
+    paths: ['firmware/**', '.github/workflows/firmware.yml']
+  pull_request:
+    paths: ['firmware/**', '.github/workflows/firmware.yml']
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: stable
+            core: esp32:esp32@2.0.17
+            libs: --no-deps M5GFX@0.2.14 M5Unified@0.2.9
+            fqbn: esp32:esp32:m5stick-c:PartitionScheme=min_spiffs
+          - name: latest
+            core: esp32:esp32
+            libs: M5Unified
+            # 최신 코어는 보드 이름이 바뀌었을 수 있어 일반 ESP32 로 컴파일만 확인 (M5Unified 가 실행 중에 기종을 알아냄)
+            fqbn: esp32:esp32:esp32:PartitionScheme=min_spiffs
+    name: build (${{ matrix.name }})
+    env:
+      SKETCH: firmware/m5stickc-plus-tally
+      FQBN: ${{ matrix.fqbn }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # ESP32 코어 2.x 는 리눅스에서 esptool.py(파이썬)를 쓴다 → pyserial 필요
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: ESP32 코어 · 라이브러리 설치
+        run: |
+          python3 -m pip install --quiet pyserial
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install ${{ matrix.core }}
+          arduino-cli lib update-index
+          arduino-cli lib install ${{ matrix.libs }}
+          arduino-cli core list
+          arduino-cli lib list
+
+      - name: 컴파일
+        run: |
+          arduino-cli compile --fqbn "$FQBN" --warnings default --export-binaries --output-dir build "$SKETCH"
+          ls -la build
+
+      - name: 한 파일로 합치기 (웹 플래셔에서 주소 0x0 에 쓰기)
+        if: matrix.name == 'stable'
+        run: |
+          set -euo pipefail
+          base=~/.arduino15/packages/esp32
+          esptool=$(ls $base/tools/esptool_py/*/esptool.py | head -1)
+          boot0=$(ls $base/hardware/esp32/*/tools/partitions/boot_app0.bin | head -1)
+          name=m5stickc-plus-tally.ino
+          python3 "$esptool" --chip esp32 merge_bin -o build/camcue-tally-m5stickc-plus.bin \
+            --flash_mode dio --flash_freq 80m --flash_size 4MB \
+            0x1000 "build/$name.bootloader.bin" \
+            0x8000 "build/$name.partitions.bin" \
+            0xe000 "$boot0" \
+            0x10000 "build/$name.bin"
+          ls -la build/camcue-tally-m5stickc-plus.bin
+          sha256sum build/camcue-tally-m5stickc-plus.bin
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.name == 'stable'
+        with:
+          name: camcue-tally-m5stickc-plus
+          path: build/camcue-tally-m5stickc-plus.bin
+          retention-days: 30

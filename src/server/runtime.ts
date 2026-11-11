@@ -214,7 +214,7 @@ export class ShowRuntime extends EventEmitter<RuntimeEvents> {
       const source = atem.mode === 'gpi' || atem.mode === 'ikegami' ? 'command' : 'atem';
       // 소스별 탈리를 아는 스위처(ATEM)는 디졸브 중 두 대 모두. 카메라 번호 범위 밖 입력(PC · 미디어 등)은 카메라가 아님
       const onAir = (atem.onAirInputs ?? one(atem.programInput)).filter(isCameraNumber);
-      return { program: atem.programInput, preview: atem.previewInput, onAir, source };
+      return { program: atem.programInput, preview: atem.previewInput, onAir, source, ...(atem.onAirLabels?.length ? { onAirLabels: atem.onAirLabels } : {}) };
     }
     return { program: this._state.programCamera, preview: next(), onAir: one(this._state.programCamera), source: 'engine' };
   }

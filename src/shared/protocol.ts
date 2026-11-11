@@ -18,10 +18,10 @@ export type ShowCommand =
  * 스위처(영상 전환 장비) 연결 상태. 이름은 v0.0.1 호환을 위해 AtemStatus 유지.
  *   disabled: 제어 안 함 / mock: 가상 ATEM / real: 실제 ATEM
  *   vmix: vMix(TCP API) / obs: OBS Studio(obs-websocket v5)
- *   ikegami: 이케가미 라우터(RS-422) / gpi: GPI 모듈 접점 출력으로 컷
+ *   ikegami: 이케가미 라우터(RS-422) / ikegami-lan: 이케가미 프레임 랜 탈리(읽기 전용) / gpi: GPI 모듈 접점 출력으로 컷
  */
 export interface AtemStatus {
-  mode: 'disabled' | 'mock' | 'real' | 'vmix' | 'obs' | 'ikegami' | 'gpi';
+  mode: 'disabled' | 'mock' | 'real' | 'vmix' | 'obs' | 'ikegami' | 'ikegami-lan' | 'gpi';
   host: string | null;
   connected: boolean;
   model: string | null;
@@ -35,6 +35,8 @@ export interface AtemStatus {
    * 모르는 장비(이케가미·GPI 컷)는 없음 → programInput 하나로 판단
    */
   onAirInputs?: number[];
+  /** 송출 중인 카메라 외 소스 이름 ("PPT" 등). 이름까지 알려 주는 장비(이케가미 랜 탈리)만 */
+  onAirLabels?: string[];
 }
 
 export interface Tally {
@@ -53,6 +55,8 @@ export interface Tally {
    * engine: 장비 미연결 시 큐 진행 기준 추정값
    */
   source: 'atem' | 'gpi' | 'command' | 'engine';
+  /** 송출 중인 카메라 외 소스 이름 (스위처가 알려 줄 때만). 없으면 "카메라 외 소스" 로 표시 */
+  onAirLabels?: string[];
 }
 
 /** 실제 탈리인가 (아니면 추정값) */
