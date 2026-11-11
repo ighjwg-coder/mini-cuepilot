@@ -21,8 +21,9 @@
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <Preferences.h>
+#include <esp_netif.h>
 
-#define FW_VERSION "1.0"
+#define FW_VERSION "1.1"
 
 static const uint16_t DISCOVERY_PORT = 38089;   // 캠큐 자동 검색 (UDP)
 static const uint16_t DEFAULT_HTTP_PORT = 38080;
@@ -342,6 +343,7 @@ static bool readDiscoverReply() {
   }
   serverIp = udp.remoteIP();
   serverPort = port;
+  Serial.printf("[find] 캠큐 %s:%u\n", serverIp.toString().c_str(), serverPort);
   return true;
 }
 
@@ -399,6 +401,7 @@ static void applyPayload(const String& p) {
 }
 
 static void streamClose(Link reason, uint32_t retryMs) {
+  Serial.printf("[tally] 연결 끊음 (이유 %d)\n", static_cast<int>(reason));
   client.stop();
   phase = HttpPhase::Idle;
   lineBuf = "";
@@ -414,6 +417,7 @@ static void streamClose(Link reason, uint32_t retryMs) {
 static void streamOpen() {
   linkState = Link::Connecting;
   render(false);
+  Serial.printf("[tally] %s:%u 연결 · CAM %u\n", serverIp.toString().c_str(), serverPort, cfg.cam);
   if (!client.connect(serverIp, serverPort, 3000)) {
     streamClose(Link::Lost, 2000);
     return;
@@ -434,6 +438,7 @@ static void handleLine(const String& line) {
       if (line.startsWith("HTTP/1.") && line.indexOf(" 200") > 0) {
         phase = HttpPhase::Headers;
       } else {
+        Serial.printf("[tally] 응답 오류: %s\n", line.c_str());
         streamClose(line.indexOf(" 404") > 0 ? Link::NoEndpoint : Link::Lost, 5000);
       }
       break;
@@ -488,8 +493,16 @@ static void reconnectNow() {
   if (linkState == Link::Live || linkState == Link::Lost) linkState = Link::Connecting;
 }
 
+static bool wifiWasUp = false;
+
 static void runLoop() {
-  if (WiFi.status() != WL_CONNECTED) {
+  const bool wifiUp = WiFi.status() == WL_CONNECTED;
+  if (wifiUp != wifiWasUp) {
+    wifiWasUp = wifiUp;
+    if (wifiUp) Serial.printf("[wifi] %s 연결 · IP %s\n", cfg.ssid.c_str(), WiFi.localIP().toString().c_str());
+    else Serial.println("[wifi] 연결 끊김");
+  }
+  if (!wifiUp) {
     if (phase != HttpPhase::Idle) {
       client.stop();
       phase = HttpPhase::Idle;
@@ -522,6 +535,10 @@ static WebServer web(80);
 static DNSServer dns;
 static String scanOptions;
 static uint32_t restartAt = 0;
+static bool portalServed = false;      // 설정 화면을 한 번이라도 보냈는지 (화면에 "화면 열림")
+static uint8_t shownStations = 255;    // 화면에 표시한 접속 기기 수 (255 = 아직 안 그림)
+static bool shownPortalServed = false;
+static uint32_t setupStatusAt = 0;
 
 static String htmlEscape(const String& s) {
   String o;
@@ -547,6 +564,8 @@ static String apName() {
 }
 
 static void handleRoot() {
+  portalServed = true;
+  Serial.println("[http] GET / (설정 화면)");
   String camOptions;
   for (uint8_t i = 1; i <= MAX_CAM; i++) {
     camOptions += String("<option value=\"") + i + "\"" + (i == cfg.cam ? " selected" : "") + ">CAM " + i + "</option>";
@@ -603,8 +622,46 @@ static void handleSave() {
 
 /** 폰의 "로그인 필요" 확인 요청을 모두 설정 화면으로 보낸다 */
 static void handleRedirect() {
+  Serial.printf("[http] %s -> 설정 화면으로\n", web.uri().c_str());
   web.sendHeader("Location", String("http://") + WiFi.softAPIP().toString() + "/", true);
   web.send(302, "text/plain", "");
+}
+
+/**
+ * 설정 와이파이에 붙은 폰에게 "DNS 서버 = 이 기기" 를 알려 준다.
+ * 코어 기본값은 DNS 를 알려 주지 않아서, 폰의 인터넷 확인이 실패해 "인터넷 연결 안 됨" 으로만 뜨고
+ * 설정 화면이 자동으로 열리지 않았다. 이 기기가 DNS 에 답하면 폰이 "로그인 필요" 로 보고 설정 화면을 띄운다.
+ */
+static void offerDnsOnAp(const IPAddress& ip) {
+  esp_netif_t* ap = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+  if (ap == nullptr) {
+    Serial.println("[setup] AP netif 없음 — DNS 안내 생략");
+    return;
+  }
+  esp_netif_dns_info_t dnsInfo = {};
+  dnsInfo.ip.type = ESP_IPADDR_TYPE_V4;
+  dnsInfo.ip.u_addr.ip4.addr = static_cast<uint32_t>(ip);
+  uint8_t offerDns = 0x02;  // OFFER_DNS (ESP-IDF 4.4) = DHCPS_OFFER_DNS (ESP-IDF 5)
+  esp_netif_dhcps_stop(ap);
+  esp_err_t e1 = esp_netif_dhcps_option(ap, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &offerDns, sizeof(offerDns));
+  esp_err_t e2 = esp_netif_set_dns_info(ap, ESP_NETIF_DNS_MAIN, &dnsInfo);
+  esp_err_t e3 = esp_netif_dhcps_start(ap);
+  Serial.printf("[setup] DHCP DNS 안내: option=%d dns=%d start=%d\n", e1, e2, e3);
+}
+
+/** 설정 모드 화면 오른쪽 위: 폰이 붙었는지 · 설정 화면이 열렸는지 (안 뜰 때 원인 찾기용) */
+static void drawSetupStatus(bool force) {
+  uint8_t n = WiFi.softAPgetStationNum();
+  if (!force && n == shownStations && portalServed == shownPortalServed) return;
+  if (n != shownStations) Serial.printf("[setup] 접속한 기기 %d대\n", n);
+  shownStations = n;
+  shownPortalServed = portalServed;
+  String s = portalServed ? "화면 열림" : (n > 0 ? "폰 연결됨" : "폰 대기");
+  uint16_t color = portalServed ? rgb(80, 220, 120) : (n > 0 ? FG_WHITE : FG_DIM);
+  M5.Display.startWrite();
+  M5.Display.fillRect(156, 0, M5.Display.width() - 156, 36, BG_DARK);
+  drawText(s, M5.Display.width() - 4, 12, &fonts::efontKR_16_b, 1, color, BG_DARK, top_right, 80);
+  M5.Display.endWrite();
 }
 
 static void startSetupMode() {
@@ -629,10 +686,14 @@ static void startSetupMode() {
   WiFi.scanDelete();
 
   const String ap = apName();
+  const IPAddress apIp(192, 168, 4, 1);
   WiFi.mode(WIFI_AP);
   WiFi.softAP(ap.c_str());
+  WiFi.softAPConfig(apIp, apIp, IPAddress(255, 255, 255, 0));
+  offerDnsOnAp(apIp);
   delay(200);
-  dns.start(53, "*", WiFi.softAPIP());
+  dns.start(53, "*", apIp);
+  Serial.printf("[setup] 설정 와이파이 %s 시작 · http://%s\n", ap.c_str(), WiFi.softAPIP().toString().c_str());
   web.on("/", HTTP_GET, handleRoot);
   web.on("/save", HTTP_POST, handleSave);
   web.onNotFound(handleRedirect);
@@ -643,16 +704,19 @@ static void startSetupMode() {
   drawText("설정 모드", 8, 4, &fonts::efontKR_16_b, 2, FG_WARN, BG_DARK, top_left, 0);
   drawText("1. 폰 와이파이에서 연결", 8, 40, &fonts::efontKR_16_b, 1, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
   drawText(ap, 8, 60, &fonts::FreeSansBold9pt7b, 1, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
-  drawText("2. 설정 화면이 안 뜨면 주소창에", 8, 86, &fonts::efontKR_16_b, 1, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
+  drawText("2. 안 뜨면 폰 주소창에", 8, 86, &fonts::efontKR_16_b, 1, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
   drawText(String("http://") + WiFi.softAPIP().toString(), 8, 106, &fonts::FreeSansBold9pt7b, 1, FG_WHITE, BG_DARK, top_left, 0);
   M5.Display.endWrite();
+  drawSetupStatus(true);
 }
 
 // ─────────────────────────────── 시작 · 반복 ───────────────────────────────
 
 void setup() {
   auto m5cfg = M5.config();
+  m5cfg.serial_baudrate = 115200;  // USB 로 진행 기록 보기 (esptool-js 의 Console)
   M5.begin(m5cfg);
+  Serial.printf("\n[CamCue Tally] v%s\n", FW_VERSION);
   M5.BtnB.setHoldThresh(2000);
   initColors();
   loadSettings();
@@ -685,6 +749,10 @@ void loop() {
   if (setupMode) {
     dns.processNextRequest();
     web.handleClient();
+    if (millis() - setupStatusAt > 500) {
+      setupStatusAt = millis();
+      drawSetupStatus(false);
+    }
     if (restartAt && static_cast<int32_t>(millis() - restartAt) >= 0) ESP.restart();
     if (M5.BtnA.wasClicked() && cfg.ssid.length() > 0) ESP.restart();  // 저장하지 않고 나가기
     M5.delay(2);
