@@ -394,6 +394,21 @@ netsh advfirewall firewall add rule name="CamCue" dir=in action=allow protocol=T
 
 CueScreen 하단에 `화면 유지 ON` / `화면 유지 ON(호환)` / `화면 유지 불가` 로 상태가 표시됩니다.
 
+### 4-5. 탈리 램프 — M5StickC Plus (Unreleased)
+
+폰 대신(또는 폰과 함께) **M5StickC Plus** 를 카메라 위 탈리 램프로 쓸 수 있습니다. 펌웨어와 설치 방법은 [`firmware/m5stickc-plus-tally`](firmware/m5stickc-plus-tally/README.md).
+
+| 화면 | 뜻 |
+|---|---|
+| 빨강 `ON AIR` (+ 본체 LED) | 내 카메라 송출 중 |
+| 초록 `PVW` | PVW (ATEM · vMix · OBS 만) |
+| 어두움 | 대기 — 다음 내 샷 · 몇 큐 뒤 · 지금 송출 중인 것 |
+
+- 램프는 캠큐 PC 에서 **자기 카메라 상태만** 받습니다(`/api/tally/stream`). 그래서 이케가미 랜 탈리·ATEM·vMix·OBS·GPI 탈리 어느 쪽이든 같은 방법이고, ATEM 이라도 램프 수만큼 ATEM 접속 자리를 쓰지 않습니다.
+- 폰과 같은 공유기(2.4GHz)에 붙습니다. 캠큐 PC 는 자동으로 찾습니다(폰 앱과 같은 UDP 38089).
+- 버튼 A = 카메라 번호 바꾸기, B = 화면 뒤집기, B 2초 = 와이파이 설정.
+- ⚠️ 펌웨어는 컴파일까지만 확인했고 실물 시험 전입니다. 내장 배터리(120mAh)가 작아 USB 보조배터리 연결을 권장합니다.
+
 ---
 
 ## 5. 참고
@@ -411,6 +426,8 @@ CueScreen 하단에 `화면 유지 ON` / `화면 유지 ON(호환)` / `화면 �
 | POST | `/api/show/load` | 라이브 행사 교체 `{ serviceId }` |
 | POST | `/api/show/command` | 진행 명령 |
 | GET | `/api/atem` | ATEM 상태 |
+| GET | `/api/tally?cam=N` | 카메라 한 대의 탈리 (탈리 램프용, JSON) |
+| GET | `/api/tally/stream?cam=N` | 위 상태가 바뀔 때마다 한 줄 (text/event-stream) |
 | WS | `/ws` | 실시간 상태 (`src/shared/protocol.ts`) |
 
 ### JSON 형식
