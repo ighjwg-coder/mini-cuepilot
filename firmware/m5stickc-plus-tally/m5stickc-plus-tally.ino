@@ -136,9 +136,9 @@ static String fitText(const String& s, int maxWidth) {
   return String("..");
 }
 
-static void drawText(const String& s, int x, int y, const lgfx::IFont* font, uint16_t fg, uint16_t bg, textdatum_t datum, int maxWidth) {
+static void drawText(const String& s, int x, int y, const lgfx::IFont* font, float size, uint16_t fg, uint16_t bg, textdatum_t datum, int maxWidth) {
   M5.Display.setFont(font);
-  M5.Display.setTextSize(1);
+  M5.Display.setTextSize(size);
   M5.Display.setTextColor(fg, bg);
   M5.Display.setTextDatum(datum);
   String t = maxWidth > 0 ? fitText(s, maxWidth) : s;
@@ -147,8 +147,8 @@ static void drawText(const String& s, int x, int y, const lgfx::IFont* font, uin
 
 /** 왼쪽: 큰 카메라 번호 */
 static void drawCamNumber(uint16_t fg, uint16_t bg) {
-  drawText("CAM", 46, 8, &fonts::Font2, fg, bg, top_center, 0);
-  drawText(String(cfg.cam), 46, 76, &fonts::Font8, fg, bg, middle_center, 0);
+  drawText("CAM", 46, 4, &fonts::Font2, 1, fg, bg, top_center, 0);
+  drawText(String(cfg.cam), 46, 66, &fonts::Font8, 1, fg, bg, middle_center, 0);
 }
 
 // 배터리는 10초마다만 읽는다 (전원 칩을 매번 읽지 않게)
@@ -166,12 +166,10 @@ static void updateBattery(bool force) {
 static void drawBattery(uint16_t fg, uint16_t bg) {
   if (batteryLevel < 0) return;
   String s = String(batteryCharging ? "+" : "") + batteryLevel + "%";
-  drawText(s, M5.Display.width() - 4, 4, &fonts::Font2, batteryLevel <= 15 && !batteryCharging ? FG_WARN : fg, bg, top_right, 0);
+  drawText(s, M5.Display.width() - 4, 4, &fonts::Font2, 1, batteryLevel <= 15 && !batteryCharging ? FG_WARN : fg, bg, top_right, 0);
 }
 
 // ─────────────────────────────── 탈리 상태 ───────────────────────────────
-
-
 
 static Link linkState = Link::WifiConnecting;  // (link 는 POSIX 함수 이름이라 피함)
 static Tally tally;
@@ -220,9 +218,9 @@ static void drawLinkScreen() {
     case Link::Live:
       break;
   }
-  drawText(line1, cx, 58, &fonts::efontKR_16_b, FG_WARN, BG_DARK, middle_center, 140);
-  drawText(line2, cx, 84, &fonts::efontKR_16, FG_DIM, BG_DARK, middle_center, 140);
-  drawText(String("v") + FW_VERSION, M5.Display.width() - 4, M5.Display.height() - 4, &fonts::Font0, FG_DIM, BG_DARK, bottom_right, 0);
+  drawText(line1, cx, 58, &fonts::efontKR_16_b, 1, FG_WARN, BG_DARK, middle_center, 140);
+  drawText(line2, cx, 84, &fonts::efontKR_16_b, 1, FG_DIM, BG_DARK, middle_center, 140);
+  drawText(String("v") + FW_VERSION, M5.Display.width() - 4, M5.Display.height() - 4, &fonts::Font0, 1, FG_DIM, BG_DARK, bottom_right, 0);
 }
 
 static void drawLiveScreen() {
@@ -238,32 +236,33 @@ static void drawLiveScreen() {
   String badge;
   if (tally.rh) badge = "리허설";
   else if (!tally.real) badge = "추정";
-  if (badge.length()) drawText(badge, 98, 4, &fonts::efontKR_16_b, tally.st == 'o' ? FG_WARN : FG_WHITE, bg, top_left, 0);
+  if (badge.length()) drawText(badge, 98, 4, &fonts::efontKR_16_b, 1, tally.st == 'o' ? FG_WARN : FG_WHITE, bg, top_left, 0);
 
   if (tally.st == 'p') {
     M5.Power.setLed(255);
-    drawText("ON AIR", cx, 58, &fonts::FreeSansBold18pt7b, FG_WHITE, bg, middle_center, 140);
-    if (tally.shot.length()) drawText(tally.shot, cx, 98, &fonts::FreeSansBold12pt7b, FG_WHITE, bg, middle_center, 140);
+    drawText("ON AIR", cx, 58, &fonts::FreeSansBold18pt7b, 1, FG_WHITE, bg, middle_center, 140);
+    if (tally.shot.length()) drawText(tally.shot, cx, 98, &fonts::FreeSansBold12pt7b, 1, FG_WHITE, bg, middle_center, 140);
     return;
   }
   M5.Power.setLed(0);
   if (tally.st == 'v') {
-    drawText("PVW", cx, 62, &fonts::FreeSansBold24pt7b, FG_WHITE, bg, middle_center, 140);
+    drawText("PVW", cx, 62, &fonts::FreeSansBold24pt7b, 1, FG_WHITE, bg, middle_center, 140);
     return;
   }
 
-  // 대기: 다음 내 샷 · 몇 큐 뒤 · 지금 송출
+  // 대기: 다음 내 샷(크게) · 몇 큐 뒤 · 지금 송출
   if (tally.next.length()) {
-    drawText(String("다음 ") + tally.next, cx, 44, &fonts::efontKR_24_b, FG_WHITE, bg, middle_center, 140);
+    drawText("다음 내 샷", cx, 30, &fonts::efontKR_16_b, 1, FG_DIM, bg, middle_center, 140);
+    drawText(tally.next, cx, 62, &fonts::FreeSansBold24pt7b, 1, FG_WHITE, bg, middle_center, 140);
     String when;
     if (tally.in == 1) when = "바로 다음";
     else if (tally.in > 1) when = String(tally.in) + "큐 뒤";
-    drawText(when, cx, 76, &fonts::efontKR_16_b, tally.in == 1 ? FG_WARN : FG_DIM, bg, middle_center, 140);
+    drawText(when, cx, 94, &fonts::efontKR_16_b, 1, tally.in == 1 ? FG_WARN : FG_DIM, bg, middle_center, 140);
   } else {
-    drawText("대기", cx, 56, &fonts::efontKR_24_b, FG_DIM, bg, middle_center, 140);
+    drawText("대기", cx, 58, &fonts::efontKR_16_b, 2, FG_DIM, bg, middle_center, 140);
   }
   if (tally.now.length()) {
-    drawText(String("송출: ") + tally.now, 6, h - 6, &fonts::efontKR_16, FG_DIM, bg, bottom_left, w - 12);
+    drawText(String("송출: ") + tally.now, 6, h - 6, &fonts::efontKR_16_b, 1, FG_DIM, bg, bottom_left, w - 12);
   }
 }
 
@@ -348,7 +347,6 @@ static bool readDiscoverReply() {
 
 // ─────────────────────────────── 탈리 받기 (HTTP 스트림) ───────────────────────────────
 
-
 static WiFiClient client;
 static HttpPhase phase = HttpPhase::Idle;
 static String lineBuf;
@@ -404,6 +402,7 @@ static void streamClose(Link reason, uint32_t retryMs) {
   client.stop();
   phase = HttpPhase::Idle;
   lineBuf = "";
+  tally = Tally();  // 옛 탈리를 남기지 않는다
   linkState = reason;
   nextConnectAt = millis() + retryMs;
   if (reason == Link::Lost && ++failCount >= 3 && !serverManual) {
@@ -439,17 +438,16 @@ static void handleLine(const String& line) {
       }
       break;
     case HttpPhase::Headers:
-      if (line.length() == 0) {
-        phase = HttpPhase::Body;
-        linkState = Link::Live;
-        failCount = 0;
-      }
+      if (line.length() == 0) phase = HttpPhase::Body;
       break;
     case HttpPhase::Body:
       if (line.startsWith("data:")) {
         String payload = line.substring(5);
         payload.trim();
         applyPayload(payload);
+        // 첫 상태를 받은 뒤에야 탈리 화면으로 (그 전에는 "연결 중")
+        linkState = Link::Live;
+        failCount = 0;
       }
       break;
     case HttpPhase::Idle:
@@ -495,7 +493,9 @@ static void runLoop() {
     if (phase != HttpPhase::Idle) {
       client.stop();
       phase = HttpPhase::Idle;
+      lineBuf = "";
     }
+    tally = Tally();
     linkState = Link::WifiConnecting;
     return;
   }
@@ -612,7 +612,7 @@ static void startSetupMode() {
   M5.Power.setLed(0);
   M5.Display.startWrite();
   M5.Display.fillScreen(BG_DARK);
-  drawText("와이파이 찾는 중", M5.Display.width() / 2, M5.Display.height() / 2, &fonts::efontKR_16_b, FG_WARN, BG_DARK, middle_center, 0);
+  drawText("와이파이 찾는 중", M5.Display.width() / 2, M5.Display.height() / 2, &fonts::efontKR_16_b, 1, FG_WARN, BG_DARK, middle_center, 0);
   M5.Display.endWrite();
 
   WiFi.disconnect(true);
@@ -640,11 +640,11 @@ static void startSetupMode() {
 
   M5.Display.startWrite();
   M5.Display.fillScreen(BG_DARK);
-  drawText("설정 모드", 8, 6, &fonts::efontKR_24_b, FG_WARN, BG_DARK, top_left, 0);
-  drawText("1. 폰 와이파이에서 연결", 8, 40, &fonts::efontKR_16, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
-  drawText(ap, 8, 60, &fonts::FreeSansBold9pt7b, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
-  drawText("2. 설정 화면이 안 뜨면 주소창에", 8, 86, &fonts::efontKR_16, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
-  drawText(String("http://") + WiFi.softAPIP().toString(), 8, 106, &fonts::FreeSansBold9pt7b, FG_WHITE, BG_DARK, top_left, 0);
+  drawText("설정 모드", 8, 4, &fonts::efontKR_16_b, 2, FG_WARN, BG_DARK, top_left, 0);
+  drawText("1. 폰 와이파이에서 연결", 8, 40, &fonts::efontKR_16_b, 1, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
+  drawText(ap, 8, 60, &fonts::FreeSansBold9pt7b, 1, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
+  drawText("2. 설정 화면이 안 뜨면 주소창에", 8, 86, &fonts::efontKR_16_b, 1, FG_WHITE, BG_DARK, top_left, M5.Display.width() - 16);
+  drawText(String("http://") + WiFi.softAPIP().toString(), 8, 106, &fonts::FreeSansBold9pt7b, 1, FG_WHITE, BG_DARK, top_left, 0);
   M5.Display.endWrite();
 }
 
@@ -660,8 +660,13 @@ void setup() {
   M5.Display.setBrightness(220);
   updateBattery(true);
 
-  M5.update();
-  bool wantSetup = takeSetupRequest() || M5.BtnB.isPressed() || cfg.ssid.length() == 0;
+  bool holdB = false;
+  for (int i = 0; i < 5; i++) {
+    M5.update();
+    holdB = holdB || M5.BtnB.isPressed();
+    delay(10);
+  }
+  bool wantSetup = takeSetupRequest() || holdB || cfg.ssid.length() == 0;
   if (wantSetup) {
     startSetupMode();
     return;
